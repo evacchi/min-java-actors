@@ -5,6 +5,7 @@ import io.github.evacchi.chat.ChatServer.Message;
 
 import java.util.Scanner;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -15,6 +16,8 @@ public interface Client {
 
     String host = "localhost";
     int portNumber = 4444;
+    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+    Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
 
     static void main(String[] args) {
         var userName = args[0];
@@ -26,16 +29,9 @@ public interface Client {
                 Server.......%s
                 """.stripIndent(), userName, socket.getLocalPort(), socket.getRemoteSocketAddress());
 
-        var sys = new Actor.System(Executors.newCachedThreadPool());
         var serverOut = sys.actorOf(self -> serverOut(self, userName, socket));
         var userIn = sys.actorOf(self -> userInput(self, serverOut));
-        var poller = sys.actorOf(self -> serverPoll(self, socket));
-
-        Executors.newScheduledThreadPool(4)
-                .scheduleWithFixedDelay(() -> {
-                            userIn.tell(Poll);
-                            poller.tell(Poll);
-                        }, 0, 1, TimeUnit.SECONDS);
+        var serverSocketReader = sys.actorOf(self -> serverSocketReader(self, socket));
 
     }
 
@@ -48,9 +44,11 @@ public interface Client {
 
     static Behavior userInput(Address self, Address server) {
         var scanner = new Scanner(in);
+        self.tell(Poll);
 
         return staying(msg -> {
             if (scanner.hasNextLine()) server.tell(new Message(scanner.nextLine()));
+            scheduler.schedule(() -> self.tell(Poll), 1, TimeUnit.SECONDS);
         });
     }
 
@@ -61,12 +59,15 @@ public interface Client {
         });
     }
 
-    static Behavior serverPoll(Address self, ChatSocket socket) {
+    static Behavior serverSocketReader(Address self, ChatSocket socket) {
+        self.tell(Poll);
+
         return staying(msg -> {
             var serverIn = socket.getInputScanner();
             if (serverIn.hasNextLine()) {
                 out.println(serverIn.nextLine());
             }
+            scheduler.schedule(() -> self.tell(Poll), 1, TimeUnit.SECONDS);
         });
     }
 }
