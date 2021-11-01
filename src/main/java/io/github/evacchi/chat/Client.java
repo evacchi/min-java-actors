@@ -6,11 +6,13 @@ import io.github.evacchi.chat.ChatServer.Message;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
-import static io.github.evacchi.Actor.*;
-import static java.lang.System.*;
+import static io.github.evacchi.Actor.Address;
+import static io.github.evacchi.Actor.Behavior;
+import static io.github.evacchi.chat.ChatBehavior.lineReader;
+import static io.github.evacchi.chat.ChatBehavior.staying;
+import static java.lang.System.in;
+import static java.lang.System.out;
 
 public interface Client {
 
@@ -35,21 +37,8 @@ public interface Client {
 
     }
 
-    class Poll {}
-    Poll Poll = new Poll();
-
-    static Behavior staying(Consumer<Object> consumer) {
-        return msg -> { consumer.accept(msg); return Stay; };
-    }
-
     static Behavior userInput(Address self, Address server) {
-        var scanner = new Scanner(in);
-        self.tell(Poll);
-
-        return staying(msg -> {
-            if (scanner.hasNextLine()) server.tell(new Message(scanner.nextLine()));
-            scheduler.schedule(() -> self.tell(Poll), 1, TimeUnit.SECONDS);
-        });
+        return lineReader(self, new Scanner(in), scheduler, line -> server.tell(new Message(line)));
     }
 
     static Behavior serverOut(Address self, String userName, ChatSocket socket) {
@@ -60,14 +49,6 @@ public interface Client {
     }
 
     static Behavior serverSocketReader(Address self, ChatSocket socket) {
-        self.tell(Poll);
-
-        return staying(msg -> {
-            var serverIn = socket.getInputScanner();
-            if (serverIn.hasNextLine()) {
-                out.println(serverIn.nextLine());
-            }
-            scheduler.schedule(() -> self.tell(Poll), 1, TimeUnit.SECONDS);
-        });
+        return lineReader(self, socket.getInputScanner(), scheduler, out::println);
     }
 }

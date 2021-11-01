@@ -1,15 +1,16 @@
 package io.github.evacchi.chat;
 
 import io.github.evacchi.Actor;
-import io.github.evacchi.Actor.*;
+import io.github.evacchi.Actor.Address;
+import io.github.evacchi.Actor.Behavior;
 
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static io.github.evacchi.chat.Client.staying;
-import static java.lang.System.*;
+import static io.github.evacchi.chat.ChatBehavior.*;
+import static java.lang.System.out;
 
 public interface ChatServer {
     int portNumber = 4444;
@@ -23,19 +24,15 @@ public interface ChatServer {
         var serverActor = io.actorOf(self -> serverSocketHandler(self, clientManager, new ChatServerSocket(portNumber)));
     }
 
-    class Poll {}
-    Poll Poll = new Poll();
     record Message(String text) {}
     record CreateClient(ChatSocket socket) {}
 
     static Behavior serverSocketHandler(Address self, Address clientManager, ChatServerSocket serverSocket) {
         out.printf("Server started at %s.\n", serverSocket.getLocalSocketAddress());
-        self.tell(Poll);
 
-        return staying(msg -> {
+        return poller(self, scheduler, msg -> {
             var socket = serverSocket.accept();
             clientManager.tell(new CreateClient(socket));
-            scheduler.schedule(() -> self.tell(Poll), 1, TimeUnit.SECONDS);
         });
     }
 
@@ -63,15 +60,10 @@ public interface ChatServer {
 
     static Behavior clientSocketHandler(Address self, Address server, ChatSocket socket) {
         out.println("accepts : " + socket.getRemoteSocketAddress());
-        self.tell(Poll);
-        return staying(msg -> {
-            var in = socket.getInputScanner();
-            if (in.hasNextLine()) {
-                var input = in.nextLine();
-                out.println(input);
-                server.tell(new Message(input));
-            }
-            scheduler.schedule(() -> self.tell(Poll), 1, TimeUnit.SECONDS);
+
+        return lineReader(self, socket.getInputScanner(), scheduler, input -> {
+            out.println(input);
+            server.tell(new Message(input));
         });
     }
 
