@@ -4,7 +4,11 @@ import io.github.evacchi.Actor;
 import io.github.evacchi.Actor.Address;
 import io.github.evacchi.Actor.Behavior;
 
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.UncheckedIOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
@@ -13,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import static io.github.evacchi.Actor.Become;
 import static io.github.evacchi.Actor.Stay;
 import static io.github.evacchi.chat.ChatBehavior.*;
+import static java.lang.System.err;
 import static java.lang.System.out;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -23,21 +28,19 @@ public interface ChatServer {
     Actor.System io = new Actor.System(Executors.newCachedThreadPool());
     ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
 
-    static void main(String[] args) {
+    static void main(String[] args) throws IOException {
+        var serverSocket = new ServerSocket(portNumber);
+        out.printf("Server started at %s.\n", serverSocket.getLocalSocketAddress());
+
         var clientManager =
                 sys.actorOf(self -> clientManager(self));
         var serverSocketHandler =
-                io.actorOf(self -> serverSocketHandler(self, clientManager))
-                        .tell(new ChatServerSocket(portNumber));
+                io.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
     }
-
-//    private static Runnable pollEverySecond(Address self) {
-//        return () -> scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
-//    }
 
     static Behavior clientManager(Address self) {
         var clients = new ArrayList<Address>();
-        return msg -> {
+        return IOBehavior.of(msg -> {
             switch (msg) {
                 // broadcast the message to all connected clients
                 case Message m -> {
@@ -46,54 +49,48 @@ public interface ChatServer {
                 }
                 // create a connection handler and a message handler for that client
                 case CreateClient n -> {
+                    var socket = n.socket();
+                    out.println("accepts : " + socket.getRemoteSocketAddress());
+
+                    var in = new Scanner(socket.getInputStream());
                     var clientSocketHandler =
-                            io.actorOf(me -> clientSocketHandler(me, self))
-                                    .tell(n.socket());
+                            io.actorOf(me -> clientSocketHandler(me, self, in));
+
+                    var writer = new PrintWriter(socket.getOutputStream(), true);
                     var clientMessageHandler =
-                            sys.actorOf(client -> clientMessageHandler(n.socket().getOutputWriter()));
+                            sys.actorOf(client -> clientMessageHandler(writer));
+
                     clients.add(clientMessageHandler);
                     return Stay;
                 }
-                default -> { return Stay; }
-            }
-        };
-    }
-
-    static Behavior serverSocketHandler(Address self, Address clientManager) {
-//        out.printf("Server started at %s.\n", serverSocket.getLocalSocketAddress());
-
-
-
-        return msg -> {
-            if (msg instanceof ChatServerSocket serverSocket) {
-                var socket = serverSocket.accept();
-                clientManager.tell(new CreateClient(socket));
-                scheduler.schedule(() -> self.tell(serverSocket), 1, SECONDS);
-            }
-            return Stay;
-        };
-
-
-//        return loop(pollEverySecond(self), msg -> {
-//            var socket = serverSocket.accept();
-//            clientManager.tell(new CreateClient(socket));
-//        });
-    }
-
-    static Behavior clientSocketHandler(Address self, Address server) {
-//        out.println("accepts : " + socket.getRemoteSocketAddress());
-
-        return msg -> {
-            if (msg instanceof ChatSocket socket) {
-                var in = socket.getInputScanner();
-                if (in.hasNextLine()) {
-                    var input = in.nextLine();
-                    out.println(input);
-                    server.tell(new Message(input));
+                default -> {
+                    return Stay;
                 }
-                scheduler.schedule(() -> self.tell(socket), 1, SECONDS);
             }
-            return Stay;
+        });
+    }
+
+    static Behavior serverSocketHandler(Address self, Address clientManager, ServerSocket serverSocket) {
+        scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
+        return IOBehavior.of(msg -> {
+            if (msg != Poll) return Stay;
+            var socket = serverSocket.accept();
+            clientManager.tell(new CreateClient(socket));
+            return Become(serverSocketHandler(self, clientManager, serverSocket));
+        });
+    }
+
+    static Behavior clientSocketHandler(Address self, Address server, Scanner in) {
+        scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
+
+        return msg -> {
+            if (msg != Poll) return Stay;
+            if (in.hasNextLine()) {
+                var input = in.nextLine();
+                out.println(input);
+                server.tell(new Message(input));
+            }
+            return Become(clientSocketHandler(self, server, in));
         };
 
     }
