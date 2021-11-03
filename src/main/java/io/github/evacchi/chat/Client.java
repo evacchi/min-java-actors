@@ -6,10 +6,11 @@ import io.github.evacchi.chat.ChatBehavior.Message;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
+import java.util.function.Consumer;
 
 import static io.github.evacchi.Actor.Stay;
-import static io.github.evacchi.chat.ChatBehavior.*;
+import static io.github.evacchi.chat.ChatBehavior.Poll;
+import static io.github.evacchi.chat.ChatBehavior.lineReader;
 import static java.lang.System.in;
 import static java.lang.System.out;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -34,18 +35,23 @@ public interface Client {
                 socket.getOutputWriter().println(userName + " > " + m.text());
             return Stay;
         });
-        var userIn = sys.actorOf(self -> lineReader(
-                pollEverySecond(self),
+        var userIn = sys.actorOf(self -> lineReader(self,
                 new Scanner(in),
                 line -> serverOut.tell(new Message(line))));
-        var serverSocketReader = sys.actorOf(self -> lineReader(
-                pollEverySecond(self),
+        var serverSocketReader = sys.actorOf(self -> lineReader(self,
                 socket.getInputScanner(),
                 out::println));
     }
 
-    private static Runnable pollEverySecond(Actor.Address self) {
-        return () -> scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
+    static Actor.Behavior lineReader(Actor.Address self, Scanner in, Consumer<String> lineConsumer) {
+        return msg -> {
+            if (msg == Poll && in.hasNextLine()) {
+                var input = in.nextLine();
+                lineConsumer.accept(input);
+            }
+            scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
+            return Stay;
+        };
     }
 
 }
