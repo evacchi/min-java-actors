@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 
+import static io.github.evacchi.Actor.Stay;
 import static io.github.evacchi.chat.ChatBehavior.*;
 import static java.lang.System.in;
 import static java.lang.System.out;
@@ -28,17 +29,18 @@ public interface Client {
         out.printf("Local Port...%d\n", socket.getLocalPort());
         out.printf("Server.......%s\n", socket.getRemoteSocketAddress());
 
-        var serverOut = sys.actorOf(self -> staying(msg -> {
+        var serverOut = sys.actorOf(self -> msg -> {
             if (msg instanceof Message m)
                 socket.getOutputWriter().println(userName + " > " + m.text());
-        }));
+            return Stay;
+        });
         var userIn = sys.actorOf(self -> lineReader(
-                new Scanner(in),
                 pollEverySecond(self),
+                new Scanner(in),
                 line -> serverOut.tell(new Message(line))));
         var serverSocketReader = sys.actorOf(self -> lineReader(
-                socket.getInputScanner(),
                 pollEverySecond(self),
+                socket.getInputScanner(),
                 out::println));
     }
 
