@@ -16,7 +16,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public interface Client {
 
-    interface IOConsumer<T> { void accept(T t) throws IOException; }
+    interface IOLineReader { void read(String line) throws IOException; }
     interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
     static Actor.Behavior IO(IOBehavior behavior) {
         return msg -> {
@@ -31,13 +31,13 @@ public interface Client {
     ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
     Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
 
-    static ObjectMapper Mapper = new ObjectMapper();
-
     static Object Poll = new Object();
     record Message(String user, String text) {}
 
     static void main(String[] args) throws IOException {
         var userName = args[0];
+
+        var mapper = new ObjectMapper();
 
         var socket = new Socket(host, portNumber);
         var userInput = new BufferedReader(new InputStreamReader(in));
@@ -50,21 +50,21 @@ public interface Client {
 
         var serverOut = sys.actorOf(self -> IO(msg -> {
             if (msg instanceof Message m)
-                socketOutput.println(Mapper.writeValueAsString(m));
+                socketOutput.println(mapper.writeValueAsString(m));
             return Stay;
         }));
-        var userIn = sys.actorOf(self -> lineReader(self,
+        var userIn = sys.actorOf(self -> readLine(self,
                 userInput,
                 line -> serverOut.tell(new Message(userName, line))));
-        var serverSocketReader = sys.actorOf(self -> lineReader(self,
+        var serverSocketReader = sys.actorOf(self -> readLine(self,
                 socketInput,
                 line -> {
-                    Message message = Mapper.readValue(line, Message.class);
+                    Message message = mapper.readValue(line, Message.class);
                     out.printf("%s > %s\n", message.user(), message.text());
                 }));
     }
 
-    static Actor.Behavior lineReader(Actor.Address self, BufferedReader in, IOConsumer<String> lineConsumer) {
+    static Actor.Behavior readLine(Actor.Address self, BufferedReader in, IOLineReader lineReader) {
         // schedule a message to self
         scheduler.schedule(() -> self.tell(Poll), 100, MILLISECONDS);
 
@@ -73,11 +73,11 @@ public interface Client {
             if (msg != Poll) return Stay;
             if (in.ready()) {
                 var input = in.readLine();
-                lineConsumer.accept(input);
+                lineReader.read(input);
             }
 
             // "stay" in the same state, ensuring that the initializer is re-evaluated
-            return Become(lineReader(self, in, lineConsumer));
+            return Become(readLine(self, in, lineReader));
         });
     }
 
