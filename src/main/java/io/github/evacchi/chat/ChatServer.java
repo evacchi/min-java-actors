@@ -4,22 +4,30 @@ import io.github.evacchi.Actor;
 import io.github.evacchi.Actor.Address;
 import io.github.evacchi.Actor.Behavior;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static io.github.evacchi.Actor.Become;
 import static io.github.evacchi.Actor.Stay;
-import static io.github.evacchi.chat.ChatBehavior.*;
 import static java.lang.System.out;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public interface ChatServer {
+    interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
+    static Actor.Behavior IO(IOBehavior behavior) {
+        return msg -> {
+            try { return behavior.apply(msg); }
+            catch (IOException e) { throw new UncheckedIOException(e); }
+        };
+    }
+    static Object Poll = new Object();
+    record ServerMessage(String payload) {}
+    record CreateClient(Socket socket) {}
+
     int portNumber = 4444;
 
     Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
@@ -38,7 +46,7 @@ public interface ChatServer {
 
     static Behavior clientManager(Address self) {
         var clients = new ArrayList<Address>();
-        return IOBehavior.of(msg -> {
+        return IO(msg -> {
             switch (msg) {
                 // create a connection handler and a message handler for that client
                 case CreateClient n -> {
@@ -46,18 +54,18 @@ public interface ChatServer {
                     out.println("accepts : " + socket.getRemoteSocketAddress());
 
                     var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    var clientSocketHandler =
+                    var clientInput =
                             io.actorOf(me -> clientInput(me, self, in));
 
                     var writer = new PrintWriter(socket.getOutputStream(), true);
-                    var clientMessageHandler =
+                    var clientOutput =
                             sys.actorOf(client -> clientOutput(writer));
 
-                    clients.add(clientMessageHandler);
+                    clients.add(clientOutput);
                     return Stay;
                 }
                 // broadcast the message to all connected clients
-                case Message m -> {
+                case ServerMessage m -> {
                     clients.forEach(c -> c.tell(m));
                     return Stay;
                 }
@@ -71,7 +79,7 @@ public interface ChatServer {
 
     static Behavior serverSocketHandler(Address self, Address clientManager, ServerSocket serverSocket) {
         scheduler.schedule(() -> self.tell(Poll), 1000, MILLISECONDS);
-        return IOBehavior.of(msg -> {
+        return IO(msg -> {
             if (msg != Poll) return Stay;
             var socket = serverSocket.accept();
             clientManager.tell(new CreateClient(socket));
@@ -83,17 +91,15 @@ public interface ChatServer {
         // schedule a message to self
         scheduler.schedule(() -> self.tell(Poll), 100, MILLISECONDS);
 
-        return IOBehavior.of(msg -> {
+        return IO(msg -> {
             // ignore non-Poll messages
             if (msg != Poll) return Stay;
             if (in.ready()) {
-                var input = in.readLine();
+                var m = in.readLine();
                 // log message to stdout
-                out.println(input);
-                // deserialize from JSON
-                Message m = Mapper.readValue(input, Message.class);
+                out.println(m);
                 // broadcast to all other clients
-                clientManager.tell(m);
+                clientManager.tell(new ServerMessage(m));
             }
 
             // "stay" in the same state, ensuring that the initializer is re-evaluated
@@ -102,11 +108,9 @@ public interface ChatServer {
     }
 
     static Behavior clientOutput(PrintWriter writer) {
-        return IOBehavior.of(msg -> {
-            if (msg instanceof Message m) writer.println(Mapper.writeValueAsString(m));
+        return msg -> {
+            if (msg instanceof ServerMessage m) writer.println(m.payload());
             return Stay;
-        });
+        };
     }
-
-
 }
