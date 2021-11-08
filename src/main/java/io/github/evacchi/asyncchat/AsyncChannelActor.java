@@ -63,15 +63,13 @@ public interface AsyncChannelActor {
                 }
                 case Buffer buffer -> {
                     var line = acc + buffer.content;
-                    switch (Integer.valueOf(line.indexOf(END_LINE))) {
-                        case Integer cr && cr >= 0 -> {
-                            parent.tell(new LineRead(line.substring(0, cr)));
-                            var rem = line.replace(END_LINE, ' ').substring(cr + 1).trim();
-                            yield Become(idle(self, parent, channel, rem));
-                        }
-                        default -> {
-                            yield Become(idle(self, parent, channel, ""));
-                        }
+                    var cr = line.indexOf(END_LINE);
+                    if (cr >= 0) {
+                        parent.tell(new LineRead(line.substring(0, cr)));
+                        var rem = line.replace(END_LINE, ' ').substring(cr + 1).trim();
+                        yield Become(idle(self, parent, channel, rem));
+                    } else {
+                        yield Become(idle(self, parent, channel, ""));
                     }
                 }
                 default -> throw new RuntimeException("Unhandled message " + msg);
