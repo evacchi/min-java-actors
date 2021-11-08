@@ -27,10 +27,7 @@ import io.github.evacchi.Actor;
 
 import java.io.*;
 import java.net.*;
-import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.CompletionHandler;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 
@@ -64,17 +61,13 @@ public interface ChatServer {
 
     static Behavior idle(Address self, AsynchronousServerSocketChannel channel, ArrayList<Actor.Address> children) {
         out.println("Server in open socket!");
-        channel.accept(null, new CompletionHandler<>() {
-            @Override
-            public void completed(AsynchronousSocketChannel result, Object attachment) {
-                var child = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, result, ""));
-                self.tell(new SocketOpen(child));
-            }
-            @Override
-            public void failed(Throwable exc, Object attachment) {
-                self.tell(new SocketError());
-            }
-        });
+        channel.accept(null, Channels.onAccept(
+                result -> {
+                    var child = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, result, ""));
+                    self.tell(new SocketOpen(child));
+                },
+                exc -> self.tell(new SocketError()))
+        );
 
         return msg -> switch (msg) {
             case SocketError ignored -> throw new RuntimeException("Failed to open the socket");

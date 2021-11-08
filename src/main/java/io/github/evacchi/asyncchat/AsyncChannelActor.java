@@ -27,11 +27,9 @@ import io.github.evacchi.Actor;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.CompletionHandler;
 
 import static io.github.evacchi.Actor.*;
-import static java.lang.System.err;
-import static java.lang.System.out;
+import static java.lang.System.*;
 
 public interface AsyncChannelActor {
 
@@ -49,37 +47,18 @@ public interface AsyncChannelActor {
             self.tell(new PoisonPill());
         } else {
             ByteBuffer buf = ByteBuffer.allocate(2048);
-            channel.read(buf, channel, new CompletionHandler<Integer, AsynchronousSocketChannel>() {
-                @Override
-                public void completed(Integer result, AsynchronousSocketChannel channel) {
-                    self.tell(new Buffer(new String(buf.array())));
-                }
-
-                @Override
-                public void failed(Throwable exc, AsynchronousSocketChannel channel) {
-                    exc.printStackTrace();
-                    self.tell(new PoisonPill());
-                }
-            });
+            channel.read(buf, channel,
+                    Channels.onReadWrite(
+                            i -> self.tell(new Buffer(new String(buf.array()))),
+                            exc -> self.tell(new PoisonPill())));
         }
-
         return msg -> switch (msg) {
                 case PoisonPill pp -> Die;
                 case WriteLine line -> {
-                    channel.write(ByteBuffer.wrap((line.payload() + END_LINE).getBytes()), channel, new CompletionHandler<Integer, AsynchronousSocketChannel>() {
-                        @Override
-                        public void completed(Integer result, AsynchronousSocketChannel channel) {
-                            //after message written
-                            //NOTHING TO DO (for now)
-                        }
-
-                        @Override
-                        public void failed(Throwable exc, AsynchronousSocketChannel channel) {
-                            exc.printStackTrace();
-                            self.tell(new PoisonPill());
-                        }
-                    });
-
+                    channel.write(ByteBuffer.wrap((line.payload() + END_LINE).getBytes()), channel,
+                            Channels.onReadWrite(
+                                    i -> {},
+                                    exc -> self.tell(new PoisonPill())));
                     yield Stay;
                 }
                 case Buffer buffer -> {
