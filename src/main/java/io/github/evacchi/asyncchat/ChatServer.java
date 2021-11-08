@@ -51,7 +51,7 @@ public interface ChatServer {
         out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
 
         var serverSocketHandler =
-                system.actorOf(self -> idle(self, socketChannel, new ArrayList<Actor.Address>()));
+                system.actorOf(self -> idle(self, socketChannel));
 
         // Just keep the thread alive
         while (true) {
@@ -59,8 +59,9 @@ public interface ChatServer {
         }
     }
 
-    static Behavior idle(Address self, AsynchronousServerSocketChannel channel, ArrayList<Actor.Address> children) {
+    static Behavior idle(Address self, AsynchronousServerSocketChannel channel) {
         out.println("Server in open socket!");
+        var children = new ArrayList<Actor.Address>();
         channel.accept(null, Channels.onAccept(
                 result -> {
                     var child = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, result, ""));
@@ -69,19 +70,18 @@ public interface ChatServer {
                 exc -> self.tell(new SocketError()))
         );
 
-        return msg -> switch (msg) {
-            case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
-            case SocketOpen open -> {
-                children.add(open.child);
-                yield Become(idle(self, channel, children));
-            }
-            case AsyncChannelActor.LineRead lr -> {
-                for (var child: children) {
-                    child.tell(new AsyncChannelActor.WriteLine(lr.payload()));
+        return msg -> {
+            switch (msg) {
+                case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
+                case SocketOpen open -> children.add(open.child);
+                case AsyncChannelActor.LineRead lr -> {
+                    for (var child: children) {
+                        child.tell(new AsyncChannelActor.WriteLine(lr.payload()));
+                    }
                 }
-                yield Stay;
+                default -> throw new RuntimeException("Unhandled message " + msg);
             }
-            default -> throw new RuntimeException("Unhandled message " + msg);
+            return Stay;
         };
     }
 

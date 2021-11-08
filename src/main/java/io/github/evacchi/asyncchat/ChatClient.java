@@ -79,11 +79,7 @@ public interface ChatClient {
     }
 
     static Actor.Behavior init(Actor.Address self, String name, AsynchronousSocketChannel channel) {
-        var actorChannel = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
-        return idle(self, name, actorChannel);
-    }
-
-    static Actor.Behavior idle(Actor.Address self, String name, Actor.Address client) {
+        var client = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
         return Unchecked(msg -> switch (msg) {
             case NewMessage nm -> {
                 var txtMsg = mapper.writeValueAsString(new Message(name, nm.text));
