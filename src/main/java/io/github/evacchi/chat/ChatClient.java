@@ -1,3 +1,27 @@
+/*
+ *    Copyright 2021 Edoardo Vacchi
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ *
+ */
+
+//JAVA 17
+//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA_OPTIONS  --enable-preview
+//REPOS mavencentral,jitpack=https://jitpack.io/
+//DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//DEPS com.fasterxml.jackson.core:jackson-databind:2.13.0
+
 package io.github.evacchi.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -5,16 +29,13 @@ import io.github.evacchi.Actor;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.*;
 
-import static io.github.evacchi.Actor.Become;
-import static io.github.evacchi.Actor.Stay;
-import static java.lang.System.in;
-import static java.lang.System.out;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static io.github.evacchi.Actor.*;
+import static java.lang.System.*;
+import static java.util.concurrent.TimeUnit.*;
 
-public interface Client {
+public interface ChatClient {
 
     interface IOLineReader { void read(String line) throws IOException; }
     interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
@@ -24,7 +45,6 @@ public interface Client {
             catch (IOException e) { throw new UncheckedIOException(e); }
         };
     }
-
 
     String host = "localhost";
     int portNumber = 4444;
@@ -80,6 +100,4 @@ public interface Client {
             return Become(readLine(self, in, lineReader));
         });
     }
-
-
 }

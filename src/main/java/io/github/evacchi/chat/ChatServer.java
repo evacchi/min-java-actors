@@ -1,20 +1,38 @@
+/*
+ *    Copyright 2021 Edoardo Vacchi
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ *
+ */
+
+//JAVA 17
+//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA_OPTIONS  --enable-preview
+//REPOS jitpack=https://jitpack.io/
+//DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+
 package io.github.evacchi.chat;
 
 import io.github.evacchi.Actor;
-import io.github.evacchi.Actor.Address;
-import io.github.evacchi.Actor.Behavior;
 
 import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.net.*;
 import java.util.ArrayList;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.*;
 
-import static io.github.evacchi.Actor.Become;
-import static io.github.evacchi.Actor.Stay;
-import static java.lang.System.out;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static io.github.evacchi.Actor.*;
+import static java.lang.System.*;
+import static java.util.concurrent.TimeUnit.*;
 
 public interface ChatServer {
     interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
@@ -31,8 +49,8 @@ public interface ChatServer {
     int portNumber = 4444;
 
     Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
-    Actor.System io = new Actor.System(Executors.newCachedThreadPool());
-    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+    Actor.System io = new Actor.System(Executors.newFixedThreadPool(2));
+    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     static void main(String... args) throws IOException {
         var serverSocket = new ServerSocket(portNumber);
