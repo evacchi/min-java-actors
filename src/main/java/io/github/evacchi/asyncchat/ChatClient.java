@@ -61,15 +61,15 @@ public interface ChatClient {
         var userName = args[0];
 
         var channel = AsynchronousSocketChannel.open();
-        channel.connect(new InetSocketAddress(host, portNumber), channel, Channels.onConnect(chan -> {
-                var client = system.actorOf(self -> init(self, userName, chan));
+        channel.connect(new InetSocketAddress(host, portNumber), channel, Channels.handler((ignored, chan) -> {
+                    var client = system.actorOf(self -> init(self, userName, chan));
 
-                String line = "";
-                while (!(line = new Scanner(System.in).nextLine()).isBlank()) {
-                    client.tell(new NewMessage(line));
-                }
-            },
-            exc ->  out.println("Failed to connect to server")
+                    String line = "";
+                    while (!(line = new Scanner(System.in).nextLine()).isBlank()) {
+                        client.tell(new NewMessage(line));
+                    }
+                },
+                (exc, b) -> out.println("Failed to connect to server")
         ));
 
         // just keep the program alive
@@ -88,9 +88,7 @@ public interface ChatClient {
             }
             case AsyncChannelActor.LineRead lr -> {
                 var message = mapper.readValue(lr.payload().trim(), Message.class);
-                if (!message.user().equals(name)) {
-                    out.printf("%s > %s\n", message.user(), message.text());
-                }
+                out.printf("%s > %s\n", message.user(), message.text());
                 yield Stay;
             }
             default -> throw new RuntimeException("Unhandled message " + msg);

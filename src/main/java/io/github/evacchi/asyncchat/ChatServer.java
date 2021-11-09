@@ -29,6 +29,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.*;
 
 import static io.github.evacchi.Actor.*;
@@ -51,7 +52,7 @@ public interface ChatServer {
         out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
 
         var serverSocketHandler =
-                system.actorOf(self -> idle(self, socketChannel));
+                system.actorOf(self -> idle(self, socketChannel, new ArrayList<>()));
 
         // Just keep the thread alive
         while (true) {
@@ -59,21 +60,24 @@ public interface ChatServer {
         }
     }
 
-    static Behavior idle(Address self, AsynchronousServerSocketChannel channel) {
+    static Behavior idle(Address self, AsynchronousServerSocketChannel channel, List<Address> children) {
         out.println("Server in open socket!");
-        var children = new ArrayList<Actor.Address>();
-        channel.accept(null, Channels.onAccept(
-                result -> {
+        channel.accept(null, Channels.handler(
+                (result, ignored) -> {
+                    out.println("Child connected!");
                     var child = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, result, ""));
                     self.tell(new SocketOpen(child));
                 },
-                exc -> self.tell(new SocketError()))
+                (exc, ignored) -> self.tell(new SocketError()))
         );
 
         return msg -> {
             switch (msg) {
                 case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
-                case SocketOpen open -> children.add(open.child);
+                case SocketOpen open -> {
+                    children.add(open.child);
+                    return Become(idle(self, channel, children));
+                }
                 case AsyncChannelActor.LineRead lr -> {
                     for (var child: children) {
                         child.tell(new AsyncChannelActor.WriteLine(lr.payload()));
