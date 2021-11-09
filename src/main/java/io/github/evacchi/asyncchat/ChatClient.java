@@ -62,7 +62,6 @@ public interface ChatClient {
         var channel = AsynchronousSocketChannel.open();
         channel.connect(new InetSocketAddress(Constants.HOST, Constants.PORT_NUMBER), channel, Channels.handler((ignored, chan) -> {
                     var client = system.actorOf(self -> init(self, userName, chan));
-
                     String line = "";
                     while ((line = new Scanner(System.in).nextLine()) != null) {
                         if (!line.isBlank()) {
@@ -83,6 +82,7 @@ public interface ChatClient {
         record Message(String user, String text) { }
         var mapper = new ObjectMapper();
         var client = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
+
         return Unchecked(msg -> switch (msg) {
             case NewMessage nm -> {
                 var jsonMsg = mapper.writeValueAsString(new Message(name, nm.text));

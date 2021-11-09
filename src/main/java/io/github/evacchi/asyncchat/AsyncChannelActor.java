@@ -51,6 +51,7 @@ public interface AsyncChannelActor {
                             (a, b) -> self.tell(new Buffer(new String(buf.array()))),
                             (exc, b) -> self.tell(new PoisonPill())));
         }
+
         return msg -> switch (msg) {
             case PoisonPill pp -> Die;
             case WriteLine line -> {
