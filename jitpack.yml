@@ -7,4 +7,3 @@ install:
   - ~/.jbang/bin/jbang export mavenrepo --force -O target -Dgroup=$GROUP -Dartifact=$ARTIFACT -Dversion=$VERSION Actor.java
   - mkdir -p ~/.m2/repository
   - cp -rv target/* ~/.m2/repository/
-
