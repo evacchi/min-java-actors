@@ -39,7 +39,7 @@ public interface AsyncChannelActor {
     record LineRead(String payload) {}
     record WriteLine(String payload) {}
 
-    static final char END_LINE = '$';
+    static final char END_LINE = '\n';
 
     static Actor.Behavior idle(Actor.Address self, Actor.Address parent, AsynchronousSocketChannel channel, String acc) {
         if (!channel.isOpen()) {
@@ -48,17 +48,17 @@ public interface AsyncChannelActor {
         } else {
             ByteBuffer buf = ByteBuffer.allocate(2048);
             channel.read(buf, channel,
-                    Channels.onReadWrite(
-                            i -> self.tell(new Buffer(new String(buf.array()))),
-                            exc -> self.tell(new PoisonPill())));
+                    Channels.handler(
+                            (a,b) -> self.tell(new Buffer(new String(buf.array()))),
+                            (exc,b) -> self.tell(new PoisonPill())));
         }
         return msg -> switch (msg) {
                 case PoisonPill pp -> Die;
                 case WriteLine line -> {
                     channel.write(ByteBuffer.wrap((line.payload() + END_LINE).getBytes()), channel,
-                            Channels.onReadWrite(
-                                    i -> {},
-                                    exc -> self.tell(new PoisonPill())));
+                            Channels.handler(
+                                    (ignored,ignored_) -> {},
+                                    (exc,ignored) -> self.tell(new PoisonPill())));
                     yield Stay;
                 }
                 case Buffer buffer -> {
@@ -66,7 +66,7 @@ public interface AsyncChannelActor {
                     var cr = line.indexOf(END_LINE);
                     if (cr >= 0) {
                         parent.tell(new LineRead(line.substring(0, cr)));
-                        var rem = line.replace(END_LINE, ' ').substring(cr + 1).trim();
+                        var rem = line.substring(cr + 2).trim();
                         yield Become(idle(self, parent, channel, rem));
                     } else {
                         yield Become(idle(self, parent, channel, ""));
