@@ -32,16 +32,15 @@ import static io.github.evacchi.Actor.*;
 import static java.lang.System.err;
 
 public interface AsyncChannelActor {
-    // Internal messages
-    record Buffer(String content) { }
-    record PoisonPill() { }
-    // Public interface
     record LineRead(String payload) { }
     record WriteLine(String payload) { }
 
     static final char END_LINE = '\n';
 
     static Actor.Behavior idle(Actor.Address self, Actor.Address parent, AsynchronousSocketChannel channel, String acc) {
+        record Buffer(String content) { }
+        record PoisonPill() { }
+
         if (!channel.isOpen()) {
             err.println("channel closed");
             self.tell(new PoisonPill());
