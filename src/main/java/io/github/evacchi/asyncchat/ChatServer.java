@@ -25,38 +25,34 @@ package io.github.evacchi.asyncchat;
 
 import io.github.evacchi.Actor;
 
-import java.io.*;
-import java.net.*;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
 
 import static io.github.evacchi.Actor.*;
-import static java.lang.System.*;
+import static java.lang.System.out;
 
 public interface ChatServer {
-    sealed interface Protocol {};
-    record SocketOpen(Actor.Address child) implements Protocol {}
-    record SocketError() implements Protocol {}
-
-    String host = "localhost";
-    int portNumber = 4444;
+    record SocketOpen(Actor.Address child) { }
+    record SocketError() { }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
 
     static void main(String... args) throws IOException, InterruptedException {
         var socketChannel = AsynchronousServerSocketChannel.open();
         socketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-        socketChannel.bind(new InetSocketAddress(host, portNumber));
+        socketChannel.bind(new InetSocketAddress(Constants.HOST, Constants.PORT_NUMBER));
         out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
 
-        var serverSocketHandler =
-                system.actorOf(self -> idle(self, socketChannel, new ArrayList<>()));
+        system.actorOf(self -> idle(self, socketChannel, new ArrayList<>()));
 
         // Just keep the thread alive
         while (true) {
-            Thread.sleep(1000);
+            Thread.sleep(Integer.MAX_VALUE);
         }
     }
 
@@ -71,21 +67,19 @@ public interface ChatServer {
                 (exc, ignored) -> self.tell(new SocketError()))
         );
 
-        return msg -> {
-            switch (msg) {
-                case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
-                case SocketOpen open -> {
-                    children.add(open.child);
-                    return Become(idle(self, channel, children));
-                }
-                case AsyncChannelActor.LineRead lr -> {
-                    for (var child: children) {
-                        child.tell(new AsyncChannelActor.WriteLine(lr.payload()));
-                    }
-                }
-                default -> throw new RuntimeException("Unhandled message " + msg);
+        return msg -> switch (msg) {
+            case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
+            case SocketOpen open -> {
+                children.add(open.child());
+                yield Become(idle(self, channel, children));
             }
-            return Stay;
+            case AsyncChannelActor.LineRead lr -> {
+                children.forEach(child ->
+                        child.tell(new AsyncChannelActor.WriteLine(lr.payload()))
+                );
+                yield Stay;
+            }
+            default -> throw new RuntimeException("Unhandled message " + msg);
         };
     }
 

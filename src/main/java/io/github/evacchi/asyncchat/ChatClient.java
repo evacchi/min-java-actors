@@ -38,22 +38,21 @@ import static io.github.evacchi.Actor.Stay;
 import static java.lang.System.out;
 
 public interface ChatClient {
-
-    record Message(String user, String text) { }
-
     record NewMessage(String text) { }
 
-    interface Unchecked { Actor.Effect apply(Object msg) throws IOException; }
-    static Actor.Behavior Unchecked(Unchecked behavior) {
-        return msg -> {
-            try { return behavior.apply(msg); }
-            catch (IOException e) { throw new UncheckedIOException(e); }
-        };
+    interface Unchecked {
+        Actor.Effect apply(Object msg) throws IOException;
     }
 
-    String host = "localhost";
-    int portNumber = 4444;
-    ObjectMapper mapper = new ObjectMapper();
+    static Actor.Behavior Unchecked(Unchecked behavior) {
+        return msg -> {
+            try {
+                return behavior.apply(msg);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
 
@@ -61,12 +60,14 @@ public interface ChatClient {
         var userName = args[0];
 
         var channel = AsynchronousSocketChannel.open();
-        channel.connect(new InetSocketAddress(host, portNumber), channel, Channels.handler((ignored, chan) -> {
+        channel.connect(new InetSocketAddress(Constants.HOST, Constants.PORT_NUMBER), channel, Channels.handler((ignored, chan) -> {
                     var client = system.actorOf(self -> init(self, userName, chan));
 
                     String line = "";
-                    while (!(line = new Scanner(System.in).nextLine()).isBlank()) {
-                        client.tell(new NewMessage(line));
+                    while ((line = new Scanner(System.in).nextLine()) != null) {
+                        if (!line.isBlank()) {
+                            client.tell(new NewMessage(line));
+                        }
                     }
                 },
                 (exc, b) -> out.println("Failed to connect to server")
@@ -74,16 +75,18 @@ public interface ChatClient {
 
         // just keep the program alive
         while (true) {
-            Thread.sleep(1000);
+            Thread.sleep(Integer.MAX_VALUE);
         }
     }
 
     static Actor.Behavior init(Actor.Address self, String name, AsynchronousSocketChannel channel) {
+        record Message(String user, String text) { }
+        var mapper = new ObjectMapper();
         var client = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
         return Unchecked(msg -> switch (msg) {
             case NewMessage nm -> {
-                var txtMsg = mapper.writeValueAsString(new Message(name, nm.text));
-                client.tell(new AsyncChannelActor.WriteLine(txtMsg));
+                var jsonMsg = mapper.writeValueAsString(new Message(name, nm.text));
+                client.tell(new AsyncChannelActor.WriteLine(jsonMsg));
                 yield Stay;
             }
             case AsyncChannelActor.LineRead lr -> {
