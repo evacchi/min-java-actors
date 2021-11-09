@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.CompletionHandler;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 
@@ -62,22 +61,16 @@ public interface ChatClient {
         var userName = args[0];
 
         var channel = AsynchronousSocketChannel.open();
-        channel.connect(new InetSocketAddress(host, portNumber), channel, new CompletionHandler<Void, AsynchronousSocketChannel>() {
-            @Override
-            public void completed(Void result, AsynchronousSocketChannel channel) {
-                var client = system.actorOf(self -> init(self, userName, channel));
+        channel.connect(new InetSocketAddress(host, portNumber), channel, Channels.onConnect(chan -> {
+                var client = system.actorOf(self -> init(self, userName, chan));
 
                 String line = "";
                 while (!(line = new Scanner(System.in).nextLine()).isBlank()) {
                     client.tell(new NewMessage(line));
                 }
-            }
-
-            @Override
-            public void failed(Throwable exc, AsynchronousSocketChannel channel) {
-                out.println("Failed to connect to server");
-            }
-        });
+            },
+            exc ->  out.println("Failed to connect to server")
+        ));
 
         // just keep the program alive
         while (true) {
@@ -86,11 +79,7 @@ public interface ChatClient {
     }
 
     static Actor.Behavior init(Actor.Address self, String name, AsynchronousSocketChannel channel) {
-        var actorChannel = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
-        return idle(self, name, actorChannel);
-    }
-
-    static Actor.Behavior idle(Actor.Address self, String name, Actor.Address client) {
+        var client = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
         return Unchecked(msg -> switch (msg) {
             case NewMessage nm -> {
                 var txtMsg = mapper.writeValueAsString(new Message(name, nm.text));
