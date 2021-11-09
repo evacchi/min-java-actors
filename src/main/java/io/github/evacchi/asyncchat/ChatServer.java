@@ -29,16 +29,17 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.Executors;
 
 import static io.github.evacchi.Actor.*;
 import static java.lang.System.out;
 
 public interface ChatServer {
-    record SocketOpen(Actor.Address child) { }
+    record SocketOpen(AsynchronousSocketChannel channel) { }
     record SocketError() { }
+    record ClientConnected(Address addr) { }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
 
@@ -48,38 +49,51 @@ public interface ChatServer {
         socketChannel.bind(new InetSocketAddress(Constants.HOST, Constants.PORT_NUMBER));
         out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
 
-        system.actorOf(self -> idle(self, socketChannel, new ArrayList<>()));
+        var childrenManager = system.actorOf(self -> childrenManager(self));
+        system.actorOf(self -> serverSocketHandler(self, childrenManager, () ->
+                socketChannel.accept(null, Channels.handler(
+                    (result, ignored) -> {
+                        out.println("Child connected!");
+                        self.tell(new SocketOpen(result));
+                    },
+                    (exc, ignored) -> self.tell(new SocketError()))
+        )));
 
-        // Just keep the thread alive
+        // keep it running
         while (true) {
             Thread.sleep(Integer.MAX_VALUE);
         }
     }
 
-    static Behavior idle(Address self, AsynchronousServerSocketChannel channel, List<Address> children) {
+    static Behavior serverSocketHandler(Address self, Address childrenManager, Runnable acceptConnection) {
         out.println("Server in open socket!");
-        channel.accept(null, Channels.handler(
-                (result, ignored) -> {
-                    out.println("Child connected!");
-                    var child = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, result, ""));
-                    self.tell(new SocketOpen(child));
-                },
-                (exc, ignored) -> self.tell(new SocketError()))
-        );
+        acceptConnection.run();
 
         return msg -> switch (msg) {
             case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
             case SocketOpen open -> {
-                children.add(open.child());
-                yield Become(idle(self, channel, children));
-            }
-            case AsyncChannelActor.LineRead lr -> {
-                children.forEach(child ->
-                        child.tell(new AsyncChannelActor.WriteLine(lr.payload()))
-                );
-                yield Stay;
+                var child = system.actorOf(ca ->
+                        AsyncChannelActor.idle(ca, childrenManager, new AsyncChannelActor.ChannelWrapper(open.channel()), ""));
+                childrenManager.tell(new ClientConnected(child));
+
+                yield Become(serverSocketHandler(self, childrenManager, acceptConnection));
             }
             default -> throw new RuntimeException("Unhandled message " + msg);
+        };
+    }
+
+    static Behavior childrenManager(Address self) {
+        var children = new ArrayList<Address>();
+
+        return msg -> {
+            switch (msg) {
+                case ClientConnected cc -> children.add(cc.addr());
+                case AsyncChannelActor.LineRead lr -> children.forEach(child ->
+                        child.tell(new AsyncChannelActor.WriteLine(lr.payload()))
+                );
+                default -> throw new RuntimeException("Unhandled message " + msg);
+            }
+            return Stay;
         };
     }
 

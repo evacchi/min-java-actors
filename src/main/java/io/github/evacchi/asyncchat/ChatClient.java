@@ -28,16 +28,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.evacchi.Actor;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 
+import static io.github.evacchi.Actor.Become;
 import static io.github.evacchi.Actor.Stay;
+import static java.lang.System.err;
 import static java.lang.System.out;
 
 public interface ChatClient {
+    record ChannelOpen(AsynchronousSocketChannel channel) { }
     record NewMessage(String text) { }
 
     interface Unchecked {
@@ -60,28 +62,37 @@ public interface ChatClient {
         var userName = args[0];
 
         var channel = AsynchronousSocketChannel.open();
-        channel.connect(new InetSocketAddress(Constants.HOST, Constants.PORT_NUMBER), channel, Channels.handler((ignored, chan) -> {
-                    var client = system.actorOf(self -> init(self, userName, chan));
-                    String line = "";
-                    while ((line = new Scanner(System.in).nextLine()) != null) {
-                        if (!line.isBlank()) {
-                            client.tell(new NewMessage(line));
-                        }
-                    }
-                },
-                (exc, b) -> out.println("Failed to connect to server")
-        ));
 
-        // just keep the program alive
-        while (true) {
-            Thread.sleep(Integer.MAX_VALUE);
+        var client = system.actorOf(self -> init(self, userName));
+        channel.connect(new InetSocketAddress(Constants.HOST, Constants.PORT_NUMBER), channel,
+                Channels.handler(
+                        (ignored, chan) -> client.tell(new ChannelOpen(chan)),
+                        (exc, b) -> out.println("Failed to connect to server"))
+        );
+
+        var line = "";
+        while ((line = new Scanner(System.in).nextLine()) != null) {
+            if (!line.isBlank()) {
+                client.tell(new NewMessage(line));
+            }
         }
     }
 
-    static Actor.Behavior init(Actor.Address self, String name, AsynchronousSocketChannel channel) {
+    static Actor.Behavior init(Actor.Address self, String name) {
+        return msg -> switch (msg) {
+            case ChannelOpen co -> Become(idle(self, name, co.channel()));
+            case NewMessage nm -> {
+                err.println("Socket not connected");
+                yield Stay;
+            }
+            default -> throw new RuntimeException("Unhandled message " + msg);
+        };
+    }
+
+    static Actor.Behavior idle(Actor.Address self, String name, AsynchronousSocketChannel channel) {
         record Message(String user, String text) { }
         var mapper = new ObjectMapper();
-        var client = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, channel, ""));
+        var client = system.actorOf(ca -> AsyncChannelActor.idle(ca, self, new AsyncChannelActor.ChannelWrapper(channel), ""));
 
         return Unchecked(msg -> switch (msg) {
             case NewMessage nm -> {

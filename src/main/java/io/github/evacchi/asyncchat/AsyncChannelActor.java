@@ -35,31 +35,46 @@ public interface AsyncChannelActor {
     record LineRead(String payload) { }
     record WriteLine(String payload) { }
 
+    record Buffer(String content) { }
+    record PoisonPill() { }
+
     static final char END_LINE = '\n';
 
-    static Actor.Behavior idle(Actor.Address self, Actor.Address parent, AsynchronousSocketChannel channel, String acc) {
-        record Buffer(String content) { }
-        record PoisonPill() { }
+    class ChannelWrapper {
+        private AsynchronousSocketChannel channel;
 
-        if (!channel.isOpen()) {
-            err.println("channel closed");
-            self.tell(new PoisonPill());
-        } else {
-            ByteBuffer buf = ByteBuffer.allocate(2048);
-            channel.read(buf, channel,
-                    Channels.handler(
-                            (a, b) -> self.tell(new Buffer(new String(buf.array()))),
-                            (exc, b) -> self.tell(new PoisonPill())));
+        public ChannelWrapper(AsynchronousSocketChannel channel) {
+            this.channel = channel;
         }
+
+        void write(String line, Address target) {
+            channel.write(ByteBuffer.wrap((line + END_LINE).getBytes()), channel,
+                    Channels.handler(
+                            (ignored, ignored_) -> {},
+                            (exc, ignored) -> target.tell(new PoisonPill())));
+        }
+
+        void read(Address target) {
+            if (!channel.isOpen()) {
+                err.println("channel closed");
+                target.tell(new PoisonPill());
+            } else {
+                ByteBuffer buf = ByteBuffer.allocate(2048);
+                channel.read(buf, channel,
+                        Channels.handler(
+                                (a, b) -> target.tell(new Buffer(new String(buf.array()))),
+                                (exc, b) -> target.tell(new PoisonPill())));
+            }
+        }
+    }
+
+    static Actor.Behavior idle(Actor.Address self, Actor.Address parent, ChannelWrapper channel, String acc) {
+        channel.read(self);
 
         return msg -> switch (msg) {
             case PoisonPill pp -> Die;
             case WriteLine line -> {
-                channel.write(ByteBuffer.wrap((line.payload() + END_LINE).getBytes()), channel,
-                        Channels.handler(
-                                (ignored, ignored_) -> {
-                                },
-                                (exc, ignored) -> self.tell(new PoisonPill())));
+                channel.write(line.payload(), self);
                 yield Stay;
             }
             case Buffer buffer -> {
