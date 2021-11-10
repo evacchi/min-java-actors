@@ -56,7 +56,15 @@ public interface ChatClient {
         var userName = args[0];
 
         var channel = new Channels.Socket(AsynchronousSocketChannel.open());
-        var client = system.actorOf(self -> clientConnecting(self, channel));
+
+        var client = system.actorOf(self -> clientConnecting(self));
+        channel
+                .connect()
+                .thenAccept(c -> client.tell(new Channels.Open(c)))
+                .exceptionally(exc -> {
+                    out.println("Failed to connect to server");
+                    return null;
+                });
 
         var in = new Scanner(System.in);
         while (true) {
@@ -67,11 +75,10 @@ public interface ChatClient {
         }
     }
 
-    static Actor.Behavior clientConnecting(Address self, Channels.Socket channel) {
-        channel.connect(self);
+    static Actor.Behavior clientConnecting(Address self) {
         return msg -> switch (msg) {
             case Channels.Open co -> {
-                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, co.channel()));
+                var socket = system.actorOf(ca -> Channels.SocketActor.socket(ca, self, co.channel()));
                 yield Become(clientReady(self, socket));
             }
             case Message m -> {
@@ -88,10 +95,10 @@ public interface ChatClient {
         return IO(msg -> switch (msg) {
             case Message m -> {
                 var jsonMsg = mapper.writeValueAsString(m);
-                socket.tell(new Channels.Actor.WriteLine(jsonMsg));
+                socket.tell(new Channels.SocketActor.WriteLine(jsonMsg));
                 yield Stay;
             }
-            case Channels.Actor.LineRead lr -> {
+            case Channels.SocketActor.LineRead lr -> {
                 var message = mapper.readValue(lr.payload(), Message.class);
                 out.printf("%s > %s\n", message.user(), message.text());
                 yield Stay;

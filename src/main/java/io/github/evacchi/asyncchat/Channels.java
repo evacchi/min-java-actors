@@ -25,7 +25,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
-import java.util.function.BiConsumer;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static io.github.evacchi.Actor.*;
 import static java.lang.System.out;
@@ -38,6 +39,20 @@ public interface Channels {
     String HOST = "localhost";
     int PORT_NUMBER = 4444;
     char END_LINE = '\n';
+
+    private static <A,B> CompletionHandler<A, B> handler(Consumer<A> completed, Consumer<Throwable> failed) {
+        return new CompletionHandler<>() {
+            @Override
+            public void completed(A result, B ignored) {
+                completed.accept(result);
+            }
+
+            @Override
+            public void failed(Throwable exc, B ignored) {
+                failed.accept(exc);
+            }
+        };
+    }
 
     class ServerSocket {
         AsynchronousServerSocketChannel socketChannel;
@@ -52,45 +67,63 @@ public interface Channels {
             return new ServerSocket(socketChannel);
         }
 
-        void accept(Address target) {
+        CompletableFuture<Socket> accept() {
+            var future = new CompletableFuture<Socket>();
+
             socketChannel.accept(null, Channels.handler(
-                    (result, ignored) -> {
+                    (result) -> {
                         out.println("Child connected!");
-                        target.tell(new Open(new Socket(result)));
+                        future.complete(new Socket(result));
                     },
-                    (exc, ignored) -> target.tell(new Error(exc))));
+                    (exc) -> future.completeExceptionally(exc)
+            ));
+
+            return future;
         }
+
     }
 
     class Socket {
         AsynchronousSocketChannel channel;
         Socket(AsynchronousSocketChannel channel) { this.channel = channel; }
 
-        void connect(Address target) {
-            channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this,
+        CompletableFuture<Socket> connect() {
+            var future = new CompletableFuture<Socket>();
+
+            channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), null,
                     Channels.handler(
-                            (ignored, chan) -> target.tell(new Channels.Open(chan)),
-                            (exc, b) -> out.println("Failed to connect to server")));
+                            (chan) -> future.complete(this),
+                            (exc) -> future.completeExceptionally(exc)));
+
+            return future;
         }
 
-        void write(String line, Address target) {
+        CompletableFuture<Void> write(String line) {
+            var future = new CompletableFuture<Void>();
+
             var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
             channel.write(buf, channel,
                     Channels.handler(
-                            (ignored, ignored_) -> {},
-                            (exc, ignored) -> target.tell(new Channels.Error(exc))));
+                            (ignored) -> future.complete(null),
+                            (exc) -> future.completeExceptionally(exc)));
+
+            return future;
         }
 
-        void read(Address target) {
+        CompletableFuture<String> read() {
+            var future = new CompletableFuture<String>();
+
             var buf = ByteBuffer.allocate(2048);
-            channel.read(buf, buf,
+            channel.read(buf, null,
                     Channels.handler(
-                            (a, buff) -> target.tell(new Channels.ReadBuffer(new String(buff.array()))),
-                            (exc, b) -> target.tell(new Channels.Error(exc))));
+                            (ignored) -> future.complete(new String(buf.array())),
+                            (exc) -> future.completeExceptionally(exc)));
+
+            return future;
         }
     }
 
-    interface Actor {
+    interface SocketActor {
         record LineRead(String payload) { }
         record WriteLine(String payload) { }
 
@@ -98,7 +131,13 @@ public interface Channels {
             return accumulate(self, parent, channel, "");
         }
         private static Behavior accumulate(Address self, Address parent, Channels.Socket channel, String acc) {
-            channel.read(self);
+            channel
+                    .read()
+                    .thenAccept(str -> self.tell(new Channels.ReadBuffer(str)))
+                    .exceptionally(exc -> {
+                        self.tell(new Channels.Error(exc));
+                        return null;
+                    });
 
             return msg -> switch (msg) {
                 case Channels.Error err -> {
@@ -110,33 +149,17 @@ public interface Channels {
                     int eol = line.indexOf(END_LINE);
                     var rem = "";
                     if (eol >= 0) {
-                        parent.tell(new Channels.Actor.LineRead(line.substring(0, eol)));
+                        parent.tell(new SocketActor.LineRead(line.substring(0, eol)));
                         rem = line.substring(eol + 2).trim();
                     }
                     yield Become(accumulate(self, parent, channel, rem));
                 }
                 case WriteLine line -> {
-                    channel.write(line.payload(), self);
+                    channel.write(line.payload());
                     yield Stay;
                 }
                 default -> throw new RuntimeException("Unhandled message " + msg);
             };
         }
-
-    }
-
-
-    private static <A,B> CompletionHandler<A, B> handler(BiConsumer<A,B> completed, BiConsumer<Throwable,B> failed) {
-        return new CompletionHandler<>() {
-            @Override
-            public void completed(A result, B attachment) {
-                completed.accept(result, attachment);
-            }
-
-            @Override
-            public void failed(Throwable exc, B attachment) {
-                failed.accept(exc, attachment);
-            }
-        };
     }
 }

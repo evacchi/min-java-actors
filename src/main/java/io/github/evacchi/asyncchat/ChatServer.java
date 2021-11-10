@@ -26,8 +26,6 @@ package io.github.evacchi.asyncchat;
 import io.github.evacchi.Actor;
 
 import java.io.IOException;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 
@@ -44,19 +42,40 @@ public interface ChatServer {
 
         var serverSocket = Channels.ServerSocket.open();
         system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
+
+        // Need to keep the current Thread busy to avoid Maven trying to kill it
+        // wait forever
+
+        //        synchronized (serverSocket) {
+        //            try {
+        //                serverSocket.wait();
+        //            } catch (InterruptedException e) { }
+        //        }
+
+        // deadlock on the main thread
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) { }
     }
 
     static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocketWrapper) {
         out.println("Server in open socket!");
-        serverSocketWrapper.accept(self);
+
+        var accept = serverSocketWrapper
+                .accept()
+                .thenAccept(c -> self.tell(new Channels.Open(c)))
+                .exceptionally(exc ->  {
+                    out.println("Failed to open the socket");
+                    return null;
+                });
 
         return msg -> switch (msg) {
-            case Channels.Error ignored -> throw new RuntimeException("Failed to open the socket");
             case Channels.Open open -> {
                 var client =
-                        system.actorOf(ca -> Channels.Actor.socket(ca, childrenManager, open.channel()));
+                        system.actorOf(ca -> Channels.SocketActor.socket(ca, childrenManager, open.channel()));
                 childrenManager.tell(new ClientConnected(client));
 
+                accept.cancel(true);
                 yield Become(serverSocketHandler(self, childrenManager, serverSocketWrapper));
             }
             default -> throw new RuntimeException("Unhandled message " + msg);
@@ -68,8 +87,8 @@ public interface ChatServer {
         return msg -> {
             switch (msg) {
                 case ClientConnected cc -> clients.add(cc.addr());
-                case Channels.Actor.LineRead lr ->
-                        clients.forEach(client -> client.tell(new Channels.Actor.WriteLine(lr.payload())));
+                case Channels.SocketActor.LineRead lr ->
+                        clients.forEach(client -> client.tell(new Channels.SocketActor.WriteLine(lr.payload())));
                 default -> throw new RuntimeException("Unhandled message " + msg);
             }
             return Stay;
