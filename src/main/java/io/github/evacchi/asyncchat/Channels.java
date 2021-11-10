@@ -41,7 +41,6 @@ public interface Channels {
 
     class ServerSocket {
         AsynchronousServerSocketChannel socketChannel;
-
         private ServerSocket(AsynchronousServerSocketChannel socketChannel) { this.socketChannel = socketChannel; }
 
         static ServerSocket open() throws IOException {
@@ -70,7 +69,7 @@ public interface Channels {
             channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this,
                     Channels.handler(
                             (ignored, chan) -> target.tell(new Channels.Open(chan)),
-                            (exc, b) -> out.println("Failed to connect to server")));
+                            (exc, ignored) -> target.tell(new Channels.Error(exc))));
         }
 
         void write(String line, Address target) {
@@ -108,12 +107,10 @@ public interface Channels {
                 case Channels.ReadBuffer buffer -> {
                     var line = acc + buffer.content();
                     int eol = line.indexOf(END_LINE);
-                    var rem = "";
                     if (eol >= 0) {
                         parent.tell(new Channels.Actor.LineRead(line.substring(0, eol)));
-                        rem = line.substring(eol + 2).trim();
-                    }
-                    yield Become(accumulate(self, parent, channel, rem));
+                        yield Become(accumulate(self, parent, channel, line.substring(eol + 2).trim()));
+                    } else yield Become(socket(self, parent, channel));
                 }
                 case WriteLine line -> {
                     channel.write(line.payload(), self);

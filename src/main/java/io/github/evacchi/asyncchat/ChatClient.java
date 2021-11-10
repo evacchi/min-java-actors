@@ -26,7 +26,6 @@ package io.github.evacchi.asyncchat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.evacchi.Actor;
-import io.github.evacchi.Actor.Address;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,10 +33,8 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 
-import static io.github.evacchi.Actor.Become;
-import static io.github.evacchi.Actor.Stay;
-import static java.lang.System.err;
-import static java.lang.System.out;
+import static io.github.evacchi.Actor.*;
+import static java.lang.System.*;
 
 public interface ChatClient {
     record Message(String user, String text) { }
@@ -58,9 +55,11 @@ public interface ChatClient {
         var channel = new Channels.Socket(AsynchronousSocketChannel.open());
         var client = system.actorOf(self -> clientConnecting(self, channel));
 
-        var in = new Scanner(System.in);
+        out.printf("User '%s' connecting...", userName);
+
+        var scann = new Scanner(in);
         while (true) {
-            var line = in.nextLine();
+            var line = scann.nextLine();
             if (line != null && !line.isBlank()) {
                 client.tell(new Message(userName, line));
             }
@@ -74,6 +73,10 @@ public interface ChatClient {
                 var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, co.channel()));
                 yield Become(clientReady(self, socket));
             }
+            case Channels.Error err -> {
+                err.throwable().printStackTrace();
+                yield Die;
+            }
             case Message m -> {
                 err.println("Socket not connected");
                 yield Stay;
@@ -83,6 +86,7 @@ public interface ChatClient {
     }
 
     static Actor.Behavior clientReady(Address self, Address socket) {
+        out.println("Client Connected.");
         var mapper = new ObjectMapper();
 
         return IO(msg -> switch (msg) {
