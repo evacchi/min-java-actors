@@ -53,11 +53,9 @@ public interface Channels {
         }
 
         CompletableFuture<Socket> accept() {
-            var f = new CompletableFuture<Socket>();
-            socketChannel.accept(null, Channels.handler(
-                    (result, ignored) -> f.complete(new Socket(result)),
-                    (exc, ignored) -> f.completeExceptionally(exc)));
-            return f;
+            var f = new CompletableFuture<AsynchronousSocketChannel>();
+            socketChannel.accept(null, handleResult(f));
+            return f.thenApply(Socket::new);
         }
     }
 
@@ -67,31 +65,22 @@ public interface Channels {
 
         CompletableFuture<Socket> connect() {
             var f = new CompletableFuture<Socket>();
-            channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this,
-                    Channels.handler(
-                            (ignored, chan) -> f.complete(chan),
-                            (exc, ignored) -> f.completeExceptionally(exc)));
+            channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this, handleAttachment(f));
             return f;
         }
 
         CompletableFuture<Void> write(String line) {
             var f = new CompletableFuture<Void>();
             var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
-            channel.write(buf, channel,
-                    Channels.handler(
-                            (ignored, ignored_) -> f.complete(null),
-                            (exc, ignored) -> f.completeExceptionally(exc)));
-            return f ;
+            channel.write(buf, null, handleAttachment(f));
+            return f;
         }
 
         CompletableFuture<String> read() {
-            var f = new CompletableFuture<String>();
+            var f = new CompletableFuture<ByteBuffer>();
             var buf = ByteBuffer.allocate(2048);
-            channel.read(buf, buf,
-                    Channels.handler(
-                            (a, buff) -> f.complete(new String(buff.array())),
-                            (exc, b) -> f.completeExceptionally(exc)));
-            return f;
+            channel.read(buf, buf, handleAttachment(f));
+            return f.thenApply(bb -> new String(bb.array()));
         }
     }
 
@@ -126,6 +115,33 @@ public interface Channels {
 
     }
 
+    private static <A, B> CompletionHandler<A, B> handleAttachment(CompletableFuture<B> f) {
+        return new CompletionHandler<>() {
+            public void completed(A result, B attachment) { f.complete(attachment); }
+            public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
+        };
+    }
+
+    private static <A, B> CompletionHandler<A, B> handleResult(CompletableFuture<A> f) {
+        return new CompletionHandler<>() {
+            public void completed(A result, B attachment) { f.complete(result); }
+            public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
+        };
+    }
+
+//
+//
+//    private static <A, B> CompletionHandler<A, B> handleAttachment(CompletableFuture<B> f) {
+//        return handler(
+//                (ignored, res) -> f.complete(res),
+//                (exc, ignored) -> f.completeExceptionally(exc));
+//    }
+//
+//    private static <A, B> CompletionHandler<A, B> handleResult(CompletableFuture<A> f) {
+//        return handler(
+//                (res, ignored) -> f.complete(res),
+//                (exc, ignored) -> f.completeExceptionally(exc));
+//    }
 
     private static <A,B> CompletionHandler<A, B> handler(BiConsumer<A,B> completed, BiConsumer<Throwable,B> failed) {
         return new CompletionHandler<>() {
