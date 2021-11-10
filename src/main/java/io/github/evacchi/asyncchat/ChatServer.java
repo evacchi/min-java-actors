@@ -35,8 +35,6 @@ import static io.github.evacchi.Actor.*;
 import static java.lang.System.out;
 
 public interface ChatServer {
-    record SocketOpen(AsynchronousSocketChannel channel) { }
-    record SocketError() { }
     record ClientConnected(Address addr) { }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
@@ -53,11 +51,11 @@ public interface ChatServer {
         serverSocketWrapper.accept(self);
 
         return msg -> switch (msg) {
-            case SocketError ignored -> throw new RuntimeException("Failed to open the socket");
-            case SocketOpen open -> {
-                var child = system.actorOf(ca ->
-                        Channels.Actor.idle(ca, childrenManager, new Channels.Socket(open.channel()), ""));
-                childrenManager.tell(new ClientConnected(child));
+            case Channels.Error ignored -> throw new RuntimeException("Failed to open the socket");
+            case Channels.Open open -> {
+                var client =
+                        system.actorOf(ca -> Channels.Actor.socket(ca, childrenManager, open.channel()));
+                childrenManager.tell(new ClientConnected(client));
 
                 yield Become(serverSocketHandler(self, childrenManager, serverSocketWrapper));
             }
@@ -66,14 +64,12 @@ public interface ChatServer {
     }
 
     static Behavior clientManager(Address self) {
-        var children = new ArrayList<Address>();
-
+        var clients = new ArrayList<Address>();
         return msg -> {
             switch (msg) {
-                case ClientConnected cc -> children.add(cc.addr());
-                case Channels.Actor.LineRead lr -> children.forEach(child ->
-                        child.tell(new Channels.Actor.WriteLine(lr.payload()))
-                );
+                case ClientConnected cc -> clients.add(cc.addr());
+                case Channels.Actor.LineRead lr ->
+                        clients.forEach(client -> client.tell(new Channels.Actor.WriteLine(lr.payload())));
                 default -> throw new RuntimeException("Unhandled message " + msg);
             }
             return Stay;

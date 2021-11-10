@@ -56,9 +56,9 @@ public interface Channels {
             socketChannel.accept(null, Channels.handler(
                     (result, ignored) -> {
                         out.println("Child connected!");
-                        target.tell(new ChatServer.SocketOpen(result));
+                        target.tell(new Open(new Socket(result)));
                     },
-                    (exc, ignored) -> target.tell(new ChatServer.SocketError())));
+                    (exc, ignored) -> target.tell(new Error(exc))));
         }
     }
 
@@ -94,7 +94,10 @@ public interface Channels {
         record LineRead(String payload) { }
         record WriteLine(String payload) { }
 
-        static Behavior idle(Address self, Address parent, Channels.Socket channel, String acc) {
+        static Behavior socket(Address self, Address parent, Channels.Socket channel) {
+            return accumulate(self, parent, channel, "");
+        }
+        private static Behavior accumulate(Address self, Address parent, Channels.Socket channel, String acc) {
             channel.read(self);
 
             return msg -> switch (msg) {
@@ -110,7 +113,7 @@ public interface Channels {
                         parent.tell(new Channels.Actor.LineRead(line.substring(0, eol)));
                         rem = line.substring(eol + 2).trim();
                     }
-                    yield Become(idle(self, parent, channel, rem));
+                    yield Become(accumulate(self, parent, channel, rem));
                 }
                 case WriteLine line -> {
                     channel.write(line.payload(), self);

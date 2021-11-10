@@ -79,7 +79,7 @@ public interface ChatClient {
 
     static Actor.Behavior idle(Actor.Address self, Channels.Socket channel) {
         var mapper = new ObjectMapper();
-        var client = system.actorOf(ca -> Channels.Actor.idle(ca, self, channel, ""));
+        var client = system.actorOf(ca -> Channels.Actor.socket(ca, self, channel));
 
         return IO(msg -> switch (msg) {
             case Message m -> {
