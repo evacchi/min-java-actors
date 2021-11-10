@@ -37,9 +37,10 @@ import static io.github.evacchi.Actor.*;
 import static java.lang.System.*;
 
 public interface ChatClient {
-    record Message(String user, String text) { }
+    record ClientConnection(Channels.Socket socket) { }
+    record Message(String user, String text) {}
 
-    interface IOBehavior {  Actor.Effect apply(Object msg) throws IOException; }
+    interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
     static Actor.Behavior IO(IOBehavior behavior) {
         return msg -> {
             try { return behavior.apply(msg); }
@@ -68,16 +69,12 @@ public interface ChatClient {
 
     static Actor.Behavior clientConnecting(Address self, Channels.Socket channel) {
         channel.connect()
-                .thenAccept(skt -> self.tell(new Channels.Open(skt)))
+                .thenAccept(skt -> self.tell(new ClientConnection(skt)))
                 .exceptionally(err -> { err.printStackTrace(); return null; });
         return msg -> switch (msg) {
-            case Channels.Open co -> {
-                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, co.channel()));
+            case ClientConnection conn -> {
+                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, conn.socket()));
                 yield Become(clientReady(self, socket));
-            }
-            case Channels.Error err -> {
-                err.throwable().printStackTrace();
-                yield Die;
             }
             case Message m -> {
                 err.println("Socket not connected");
@@ -88,7 +85,7 @@ public interface ChatClient {
     }
 
     static Actor.Behavior clientReady(Address self, Address socket) {
-        out.println("Client Connected.");
+        out.println("Connected.");
         var mapper = new ObjectMapper();
 
         return IO(msg -> switch (msg) {

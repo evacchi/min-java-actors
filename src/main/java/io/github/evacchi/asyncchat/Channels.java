@@ -26,16 +26,11 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
 
 import static io.github.evacchi.Actor.*;
 import static java.lang.System.out;
 
 public interface Channels {
-    record Open(Socket channel) { }
-    record Error(Throwable throwable) { }
-    record ReadBuffer(String content) { }
-
     String HOST = "localhost";
     int PORT_NUMBER = 4444;
     char END_LINE = '\n';
@@ -71,7 +66,7 @@ public interface Channels {
 
         CompletableFuture<Void> write(String line) {
             var f = new CompletableFuture<Void>();
-            var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
+            var buf = ByteBuffer.wrap((line + "\n").getBytes(StandardCharsets.UTF_8));
             channel.write(buf, null, handleAttachment(f));
             return f;
         }
@@ -85,19 +80,20 @@ public interface Channels {
     }
 
     interface Actor {
-        record LineRead(String payload) { }
-        record WriteLine(String payload) { }
+        record LineRead(String payload) {}
+        record WriteLine(String payload) {}
+        record ReadBuffer(String content) {}
 
         static Behavior socket(Address self, Address parent, Channels.Socket channel) {
             return accumulate(self, parent, channel, "");
         }
         private static Behavior accumulate(Address self, Address parent, Channels.Socket channel, String acc) {
             channel.read()
-                    .thenAccept(s -> self.tell(new Channels.ReadBuffer(s)))
+                    .thenAccept(s -> self.tell(new ReadBuffer(s)))
                     .exceptionally(err -> { err.printStackTrace(); return null; });
 
             return msg -> switch (msg) {
-                case Channels.ReadBuffer buffer -> {
+                case ReadBuffer buffer -> {
                     var line = acc + buffer.content();
                     int eol = line.indexOf(END_LINE);
                     if (eol >= 0) {
@@ -126,34 +122,6 @@ public interface Channels {
         return new CompletionHandler<>() {
             public void completed(A result, B attachment) { f.complete(result); }
             public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
-        };
-    }
-
-//
-//
-//    private static <A, B> CompletionHandler<A, B> handleAttachment(CompletableFuture<B> f) {
-//        return handler(
-//                (ignored, res) -> f.complete(res),
-//                (exc, ignored) -> f.completeExceptionally(exc));
-//    }
-//
-//    private static <A, B> CompletionHandler<A, B> handleResult(CompletableFuture<A> f) {
-//        return handler(
-//                (res, ignored) -> f.complete(res),
-//                (exc, ignored) -> f.completeExceptionally(exc));
-//    }
-
-    private static <A,B> CompletionHandler<A, B> handler(BiConsumer<A,B> completed, BiConsumer<Throwable,B> failed) {
-        return new CompletionHandler<>() {
-            @Override
-            public void completed(A result, B attachment) {
-                completed.accept(result, attachment);
-            }
-
-            @Override
-            public void failed(Throwable exc, B attachment) {
-                failed.accept(exc, attachment);
-            }
         };
     }
 }

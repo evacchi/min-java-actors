@@ -26,8 +26,6 @@ package io.github.evacchi.asyncchat;
 import io.github.evacchi.Actor;
 
 import java.io.IOException;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 
@@ -35,29 +33,31 @@ import static io.github.evacchi.Actor.*;
 import static java.lang.System.out;
 
 public interface ChatServer {
+    record ClientConnection(Channels.Socket socket) { }
     record ClientConnected(Address addr) { }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
 
-    static void main(String... args) throws IOException {
+    static void main(String... args) throws IOException, InterruptedException {
         var clientManager = system.actorOf(self -> clientManager(self));
 
         var serverSocket = Channels.ServerSocket.open();
         system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
+
+        Thread.currentThread().join();
     }
 
     static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocketWrapper) {
         out.println("Server in open socket!");
         serverSocketWrapper.accept()
-                .thenAccept(skt -> self.tell(new Channels.Open(skt)))
+                .thenAccept(skt -> self.tell(new ClientConnection(skt)))
                 .exceptionally(exc -> { exc.printStackTrace(); return null; });
 
         return msg -> switch (msg) {
-            case Channels.Error ignored -> throw new RuntimeException("Failed to open the socket");
-            case Channels.Open open -> {
+            case ClientConnection conn -> {
                 out.println("Child connected!");
                 var client =
-                        system.actorOf(ca -> Channels.Actor.socket(ca, childrenManager, open.channel()));
+                        system.actorOf(ca -> Channels.Actor.socket(ca, childrenManager, conn.socket()));
                 childrenManager.tell(new ClientConnected(client));
 
                 yield Become(serverSocketHandler(self, childrenManager, serverSocketWrapper));
