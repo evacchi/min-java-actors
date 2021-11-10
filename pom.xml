@@ -81,6 +81,49 @@
           <compilerArgs>--enable-preview</compilerArgs>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.0.0</version>
+        <executions>
+          <execution>
+            <id>server</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.chat.ChatServer</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>client</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.chat.ChatClient</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>asyncserver</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.asyncchat.ChatServer</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>asyncclient</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.asyncchat.ChatClient</mainClass>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
