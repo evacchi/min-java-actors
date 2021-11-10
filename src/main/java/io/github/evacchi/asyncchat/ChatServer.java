@@ -18,8 +18,8 @@
 //JAVA 17
 //JAVAC_OPTIONS --enable-preview --release 17
 //JAVA_OPTIONS  --enable-preview
-//REPOS jitpack=https://jitpack.io/
-//DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//SOURCES ../Actor.java
+//SOURCES ./Channels.java
 
 package io.github.evacchi.asyncchat;
 
@@ -42,7 +42,7 @@ public interface ChatServer {
 
         var serverSocket = Channels.ServerSocket.open();
         system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
-        
+
         // deadlock on the main thread to avoid Maven killing the process
         try {
             Thread.currentThread().join();

@@ -31,3 +31,18 @@ mvn exec:java@asyncclient -Dexec.args="alice"
 mvn exec:java@asyncclient -Dexec.args="bob"
 ```
 
+Run the async version with jbang:
+
+```
+jbang src/main/java/io/github/evacchi/asyncchat/ChatServer.java
+```
+
+and in another shell:
+
+```
+jbang jbang src/main/java/io/github/evacchi/asyncchat/ChatClient.java alice
+```
+
+```
+jbang src/main/java/io/github/evacchi/asyncchat/ChatClient.java bob
+```

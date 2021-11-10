@@ -18,8 +18,8 @@
 //JAVA 17
 //JAVAC_OPTIONS --enable-preview --release 17
 //JAVA_OPTIONS  --enable-preview
-//REPOS mavencentral,jitpack=https://jitpack.io/
-//DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//SOURCES ../Actor.java
+//SOURCES ./Channels.java
 //DEPS com.fasterxml.jackson.core:jackson-databind:2.13.0
 
 package io.github.evacchi.asyncchat;
