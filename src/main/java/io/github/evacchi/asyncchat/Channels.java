@@ -41,15 +41,15 @@ public interface Channels {
 
     class ServerSocket {
         AsynchronousServerSocketChannel socketChannel;
-        ServerSocket(AsynchronousServerSocketChannel socketChannel) {
-            this.socketChannel = socketChannel;
-        }
 
-        void open() throws IOException {
-            socketChannel = AsynchronousServerSocketChannel.open();
+        private ServerSocket(AsynchronousServerSocketChannel socketChannel) { this.socketChannel = socketChannel; }
+
+        static ServerSocket open() throws IOException {
+            var socketChannel = AsynchronousServerSocketChannel.open();
             socketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
             socketChannel.bind(new InetSocketAddress(HOST, PORT_NUMBER));
             out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
+            return new ServerSocket(socketChannel);
         }
 
         void accept(Address target) {

@@ -42,8 +42,8 @@ public interface ChatServer {
     static void main(String... args) throws IOException {
         var clientManager = system.actorOf(self -> clientManager(self));
 
-        var serverSocketWrapper = new Channels.ServerSocket(AsynchronousServerSocketChannel.open());
-        system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocketWrapper));
+        var serverSocket = Channels.ServerSocket.open();
+        system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
     }
 
     static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocketWrapper) {

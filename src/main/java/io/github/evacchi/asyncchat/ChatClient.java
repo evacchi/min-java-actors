@@ -71,7 +71,7 @@ public interface ChatClient {
         channel.connect(self);
         return msg -> switch (msg) {
             case Channels.Open co -> {
-                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, channel));
+                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, co.channel()));
                 yield Become(clientReady(self, socket));
             }
             case Message m -> {
@@ -92,7 +92,7 @@ public interface ChatClient {
                 yield Stay;
             }
             case Channels.Actor.LineRead lr -> {
-                var message = mapper.readValue(lr.payload().trim(), Message.class);
+                var message = mapper.readValue(lr.payload(), Message.class);
                 out.printf("%s > %s\n", message.user(), message.text());
                 yield Stay;
             }
