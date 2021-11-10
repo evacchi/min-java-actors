@@ -66,7 +66,7 @@ public interface Channels {
 
         CompletableFuture<Void> write(String line) {
             var f = new CompletableFuture<Void>();
-            var buf = ByteBuffer.wrap((line + "\n").getBytes(StandardCharsets.UTF_8));
+            var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
             channel.write(buf, null, handleAttachment(f));
             return f;
         }
