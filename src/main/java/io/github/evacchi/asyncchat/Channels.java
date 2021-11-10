@@ -155,7 +155,12 @@ public interface Channels {
                     yield Become(accumulate(self, parent, channel, rem));
                 }
                 case WriteLine line -> {
-                    channel.write(line.payload());
+                    channel
+                            .write(line.payload())
+                            .exceptionally(exc -> {
+                                self.tell(new Channels.Error(exc));
+                                return null;
+                            });
                     yield Stay;
                 }
                 default -> throw new RuntimeException("Unhandled message " + msg);
