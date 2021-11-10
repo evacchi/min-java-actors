@@ -42,17 +42,8 @@ public interface ChatServer {
 
         var serverSocket = Channels.ServerSocket.open();
         system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
-
-        // Need to keep the current Thread busy to avoid Maven trying to kill it
-        // wait forever
-
-        //        synchronized (serverSocket) {
-        //            try {
-        //                serverSocket.wait();
-        //            } catch (InterruptedException e) { }
-        //        }
-
-        // deadlock on the main thread
+        
+        // deadlock on the main thread to avoid Maven killing the process
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) { }
