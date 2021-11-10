@@ -25,6 +25,7 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
 import static io.github.evacchi.Actor.*;
@@ -51,13 +52,12 @@ public interface Channels {
             return new ServerSocket(socketChannel);
         }
 
-        void accept(Address target) {
+        CompletableFuture<Socket> accept() {
+            var f = new CompletableFuture<Socket>();
             socketChannel.accept(null, Channels.handler(
-                    (result, ignored) -> {
-                        out.println("Child connected!");
-                        target.tell(new Open(new Socket(result)));
-                    },
-                    (exc, ignored) -> target.tell(new Error(exc))));
+                    (result, ignored) -> f.complete(new Socket(result)),
+                    (exc, ignored) -> f.completeExceptionally(exc)));
+            return f;
         }
     }
 
@@ -65,27 +65,33 @@ public interface Channels {
         AsynchronousSocketChannel channel;
         Socket(AsynchronousSocketChannel channel) { this.channel = channel; }
 
-        void connect(Address target) {
+        CompletableFuture<Socket> connect() {
+            var f = new CompletableFuture<Socket>();
             channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this,
                     Channels.handler(
-                            (ignored, chan) -> target.tell(new Channels.Open(chan)),
-                            (exc, ignored) -> target.tell(new Channels.Error(exc))));
+                            (ignored, chan) -> f.complete(chan),
+                            (exc, ignored) -> f.completeExceptionally(exc)));
+            return f;
         }
 
-        void write(String line, Address target) {
+        CompletableFuture<Void> write(String line) {
+            var f = new CompletableFuture<Void>();
             var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
             channel.write(buf, channel,
                     Channels.handler(
-                            (ignored, ignored_) -> {},
-                            (exc, ignored) -> target.tell(new Channels.Error(exc))));
+                            (ignored, ignored_) -> f.complete(null),
+                            (exc, ignored) -> f.completeExceptionally(exc)));
+            return f ;
         }
 
-        void read(Address target) {
+        CompletableFuture<String> read() {
+            var f = new CompletableFuture<String>();
             var buf = ByteBuffer.allocate(2048);
             channel.read(buf, buf,
                     Channels.handler(
-                            (a, buff) -> target.tell(new Channels.ReadBuffer(new String(buff.array()))),
-                            (exc, b) -> target.tell(new Channels.Error(exc))));
+                            (a, buff) -> f.complete(new String(buff.array())),
+                            (exc, b) -> f.completeExceptionally(exc)));
+            return f;
         }
     }
 
@@ -97,13 +103,11 @@ public interface Channels {
             return accumulate(self, parent, channel, "");
         }
         private static Behavior accumulate(Address self, Address parent, Channels.Socket channel, String acc) {
-            channel.read(self);
+            channel.read()
+                    .thenAccept(s -> self.tell(new Channels.ReadBuffer(s)))
+                    .exceptionally(err -> { err.printStackTrace(); return null; });
 
             return msg -> switch (msg) {
-                case Channels.Error err -> {
-                    err.throwable().printStackTrace();
-                    yield Die;
-                }
                 case Channels.ReadBuffer buffer -> {
                     var line = acc + buffer.content();
                     int eol = line.indexOf(END_LINE);
@@ -113,7 +117,7 @@ public interface Channels {
                     } else yield Become(socket(self, parent, channel));
                 }
                 case WriteLine line -> {
-                    channel.write(line.payload(), self);
+                    channel.write(line.payload());
                     yield Stay;
                 }
                 default -> throw new RuntimeException("Unhandled message " + msg);

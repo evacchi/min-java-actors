@@ -67,7 +67,9 @@ public interface ChatClient {
     }
 
     static Actor.Behavior clientConnecting(Address self, Channels.Socket channel) {
-        channel.connect(self);
+        channel.connect()
+                .thenAccept(skt -> self.tell(new Channels.Open(skt)))
+                .exceptionally(err -> { err.printStackTrace(); return null; });
         return msg -> switch (msg) {
             case Channels.Open co -> {
                 var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, co.channel()));

@@ -48,11 +48,14 @@ public interface ChatServer {
 
     static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocketWrapper) {
         out.println("Server in open socket!");
-        serverSocketWrapper.accept(self);
+        serverSocketWrapper.accept()
+                .thenAccept(skt -> self.tell(new Channels.Open(skt)))
+                .exceptionally(exc -> { exc.printStackTrace(); return null; });
 
         return msg -> switch (msg) {
             case Channels.Error ignored -> throw new RuntimeException("Failed to open the socket");
             case Channels.Open open -> {
+                out.println("Child connected!");
                 var client =
                         system.actorOf(ca -> Channels.Actor.socket(ca, childrenManager, open.channel()));
                 childrenManager.tell(new ClientConnected(client));
