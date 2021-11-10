@@ -26,6 +26,7 @@ package io.github.evacchi.asyncchat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.evacchi.Actor;
+import io.github.evacchi.Actor.Address;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -55,18 +56,7 @@ public interface ChatClient {
         var userName = args[0];
 
         var channel = new Channels.Socket(AsynchronousSocketChannel.open());
-        var client = system.actorOf(self -> {
-            channel.connect(self);
-
-            return msg -> switch (msg) {
-                case Channels.Open co -> Become(idle(self, co.channel()));
-                case Message m -> {
-                    err.println("Socket not connected");
-                    yield Stay;
-                }
-                default -> throw new RuntimeException("Unhandled message " + msg);
-            };
-        });
+        var client = system.actorOf(self -> clientConnecting(self, channel));
 
         var in = new Scanner(System.in);
         while (true) {
@@ -77,14 +67,28 @@ public interface ChatClient {
         }
     }
 
-    static Actor.Behavior idle(Actor.Address self, Channels.Socket channel) {
+    static Actor.Behavior clientConnecting(Address self, Channels.Socket channel) {
+        channel.connect(self);
+        return msg -> switch (msg) {
+            case Channels.Open co -> {
+                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, channel));
+                yield Become(clientReady(self, socket));
+            }
+            case Message m -> {
+                err.println("Socket not connected");
+                yield Stay;
+            }
+            default -> throw new RuntimeException("Unhandled message " + msg);
+        };
+    }
+
+    static Actor.Behavior clientReady(Address self, Address socket) {
         var mapper = new ObjectMapper();
-        var client = system.actorOf(ca -> Channels.Actor.socket(ca, self, channel));
 
         return IO(msg -> switch (msg) {
             case Message m -> {
                 var jsonMsg = mapper.writeValueAsString(m);
-                client.tell(new Channels.Actor.WriteLine(jsonMsg));
+                socket.tell(new Channels.Actor.WriteLine(jsonMsg));
                 yield Stay;
             }
             case Channels.Actor.LineRead lr -> {
