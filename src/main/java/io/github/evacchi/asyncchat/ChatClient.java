@@ -20,16 +20,18 @@
 //JAVA_OPTIONS  --enable-preview
 //REPOS mavencentral,jitpack=https://jitpack.io/
 //DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//DEPS com.github.evacchi:java-async-channels:main-SNAPSHOT
 //DEPS com.fasterxml.jackson.core:jackson-databind:2.13.0
+//SOURCES ChannelActor.java
 
 package io.github.evacchi.asyncchat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.evacchi.Actor;
+import io.github.evacchi.channels.Channels;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 
@@ -49,11 +51,12 @@ public interface ChatClient {
     }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
+    String HOST = "localhost"; int PORT = 4444;
 
     static void main(String[] args) throws IOException {
         var userName = args[0];
 
-        var channel = new Channels.Socket(AsynchronousSocketChannel.open());
+        var channel = Channels.Socket.open();
         var client = system.actorOf(self -> clientConnecting(self, channel));
 
         out.printf("User '%s' connecting...", userName);
@@ -68,12 +71,13 @@ public interface ChatClient {
     }
 
     static Actor.Behavior clientConnecting(Address self, Channels.Socket channel) {
-        channel.connect()
+        channel.connect(HOST, PORT)
                 .thenAccept(skt -> self.tell(new ClientConnection(skt)))
                 .exceptionally(err -> { err.printStackTrace(); return null; });
         return msg -> switch (msg) {
             case ClientConnection conn -> {
-                var socket = system.actorOf(ca -> Channels.Actor.socket(ca, self, conn.socket()));
+                var socket =
+                        system.actorOf(ca -> ChannelActor.socketHandler(ca, self, conn.socket()));
                 yield Become(clientReady(self, socket));
             }
             case Message m -> {
@@ -91,11 +95,11 @@ public interface ChatClient {
         return IO(msg -> switch (msg) {
             case Message m -> {
                 var jsonMsg = mapper.writeValueAsString(m);
-                socket.tell(new Channels.Actor.WriteLine(jsonMsg));
+                socket.tell(new ChannelActor.WriteLine(jsonMsg));
                 yield Stay;
             }
-            case Channels.Actor.LineRead lr -> {
-                var message = mapper.readValue(lr.payload(), Message.class);
+            case ChannelActor.LineRead lr -> {
+                var message = mapper.readValue(lr.payload().trim(), Message.class);
                 out.printf("%s > %s\n", message.user(), message.text());
                 yield Stay;
             }

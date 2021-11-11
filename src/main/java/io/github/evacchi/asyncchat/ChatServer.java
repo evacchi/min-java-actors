@@ -19,11 +19,14 @@
 //JAVAC_OPTIONS --enable-preview --release 17
 //JAVA_OPTIONS  --enable-preview
 //REPOS jitpack=https://jitpack.io/
+//DEPS com.github.evacchi:java-async-channels:main-SNAPSHOT
 //DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//SOURCES ChannelActor.java
 
 package io.github.evacchi.asyncchat;
 
 import io.github.evacchi.Actor;
+import io.github.evacchi.channels.Channels;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,19 +40,22 @@ public interface ChatServer {
     record ClientConnected(Address addr) { }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
+    String HOST = "localhost"; int PORT = 4444;
 
     static void main(String... args) throws IOException, InterruptedException {
-        var clientManager = system.actorOf(self -> clientManager(self));
+        var serverSocket = Channels.ServerSocket.open(HOST, PORT);
 
-        var serverSocket = Channels.ServerSocket.open();
-        system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
+        var clientManager =
+                system.actorOf(self -> clientManager(self));
+        var serverSocketHandler =
+                system.actorOf(self -> serverSocketHandler(self, clientManager, serverSocket));
 
         Thread.currentThread().join();
     }
 
-    static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocketWrapper) {
+    static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocket) {
         out.println("Server in open socket!");
-        serverSocketWrapper.accept()
+        serverSocket.accept()
                 .thenAccept(skt -> self.tell(new ClientConnection(skt)))
                 .exceptionally(exc -> { exc.printStackTrace(); return null; });
 
@@ -57,10 +63,10 @@ public interface ChatServer {
             case ClientConnection conn -> {
                 out.println("Child connected!");
                 var client =
-                        system.actorOf(ca -> Channels.Actor.socket(ca, childrenManager, conn.socket()));
+                        system.actorOf(ca -> ChannelActor.socketHandler(ca, childrenManager, conn.socket()));
                 childrenManager.tell(new ClientConnected(client));
 
-                yield Become(serverSocketHandler(self, childrenManager, serverSocketWrapper));
+                yield Become(serverSocketHandler(self, childrenManager, serverSocket));
             }
             default -> throw new RuntimeException("Unhandled message " + msg);
         };
@@ -71,8 +77,8 @@ public interface ChatServer {
         return msg -> {
             switch (msg) {
                 case ClientConnected cc -> clients.add(cc.addr());
-                case Channels.Actor.LineRead lr ->
-                        clients.forEach(client -> client.tell(new Channels.Actor.WriteLine(lr.payload())));
+                case ChannelActor.LineRead lr ->
+                        clients.forEach(client -> client.tell(new ChannelActor.WriteLine(lr.payload())));
                 default -> throw new RuntimeException("Unhandled message " + msg);
             }
             return Stay;
