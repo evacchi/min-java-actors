@@ -41,8 +41,7 @@ interface ChannelActor {
             case ReadBuffer incoming -> {
                 int eol = incoming.content().indexOf('\n');
                 if (eol >= 0) {
-                    out.println(eol);
-                    var line = (buff + incoming.content().substring(0, eol)).trim();
+                    var line = buff + incoming.content().substring(0, eol);
                     clientManager.tell(new LineRead(line));
                     var newBuff = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
                     yield Become(socketHandler(self, clientManager, channel, newBuff));
