@@ -25,6 +25,7 @@
 
 package io.github.evacchi;
 
+import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -40,11 +41,16 @@ public interface Actor {
     static Effect Die = Become(msg -> { out.println("Dropping msg [" + msg + "] due to severe case of death."); return Stay; });
 
     record System(ExecutorService executorService) {
+
         public Address actorOf(Function<Address, Behavior> initial) {
+            return actorOf(initial, new ConcurrentLinkedQueue<>());
+        }
+
+        public Address actorOf(Function<Address, Behavior> initial, Queue<Object> mailbox) {
             abstract class AtomicRunnableAddress implements Address, Runnable
                 { final AtomicInteger on = new AtomicInteger(0); }
             var addr = new AtomicRunnableAddress() {
-                final ConcurrentLinkedQueue<Object> mb = new ConcurrentLinkedQueue<>();
+                final Queue<Object> mb = mailbox;
                 Behavior behavior = m -> (m instanceof Address self) ? Become(initial.apply(self)) : Stay;
                 public Address tell(Object msg) { mb.offer(msg); async(); return this; }
                 public void run() {
