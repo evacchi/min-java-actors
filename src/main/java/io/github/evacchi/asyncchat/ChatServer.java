@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.concurrent.Executors;
 
 import static io.github.evacchi.Actor.*;
-import static java.lang.System.out;
+import static java.lang.System.*;
 
 public interface ChatServer {
     record ClientConnection(Channels.Socket socket) { }

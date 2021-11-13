@@ -26,6 +26,7 @@
 
 package io.github.evacchi.asyncchat;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.evacchi.Actor;
 import io.github.evacchi.channels.Channels;
@@ -41,14 +42,6 @@ import static java.lang.System.*;
 public interface ChatClient {
     record ClientConnection(Channels.Socket socket) { }
     record Message(String user, String text) {}
-
-    interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
-    static Actor.Behavior IO(IOBehavior behavior) {
-        return msg -> {
-            try { return behavior.apply(msg); }
-            catch (IOException e) { throw new UncheckedIOException(e); }
-        };
-    }
 
     Actor.System system = new Actor.System(Executors.newCachedThreadPool());
     String HOST = "localhost"; int PORT = 4444;
@@ -92,19 +85,22 @@ public interface ChatClient {
         out.println("Connected.");
         var mapper = new ObjectMapper();
 
-        return IO(msg -> switch (msg) {
-            case Message m -> {
-                var jsonMsg = mapper.writeValueAsString(m);
-                socket.tell(new ChannelActor.WriteLine(jsonMsg));
-                yield Stay;
-            }
-            case ChannelActor.LineRead lr -> {
-                var message = mapper.readValue(lr.payload().trim(), Message.class);
-                out.printf("%s > %s\n", message.user(), message.text());
-                yield Stay;
-            }
-            default -> throw new RuntimeException("Unhandled message " + msg);
-        });
+        return msg -> {
+            try {
+                switch (msg) {
+                    case Message m -> {
+                        var jsonMsg = mapper.writeValueAsString(m);
+                        socket.tell(new ChannelActor.WriteLine(jsonMsg));
+                    }
+                    case ChannelActor.LineRead lr -> {
+                        var message = mapper.readValue(lr.payload().trim(), Message.class);
+                        out.printf("%s > %s\n", message.user(), message.text());
+                    }
+                    default -> throw new RuntimeException("Unhandled message " + msg);
+                }
+                return Stay;
+            } catch(JsonProcessingException e) { throw new UncheckedIOException(e); }
+        };
     }
 
 }

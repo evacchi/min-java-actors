@@ -22,7 +22,6 @@ import io.github.evacchi.channels.Channels;
 import java.nio.charset.StandardCharsets;
 
 import static io.github.evacchi.Actor.*;
-import static java.lang.System.out;
 
 interface ChannelActor {
     record LineRead(String payload) {}
@@ -32,7 +31,7 @@ interface ChannelActor {
     static Behavior socketHandler(Address self, Address parent, Channels.Socket channel) {
         return socketHandler(self, parent, channel, "");
     }
-    private static Behavior socketHandler(Address self, Address clientManager, Channels.Socket channel, String buff) {
+    private static Behavior socketHandler(Address self, Address clientManager, Channels.Socket channel, String partial) {
         channel.read()
                 .thenAccept(s -> self.tell(new ReadBuffer(s)))
                 .exceptionally(err -> { err.printStackTrace(); return null; });
@@ -41,13 +40,13 @@ interface ChannelActor {
             case ReadBuffer incoming -> {
                 int eol = incoming.content().indexOf('\n');
                 if (eol >= 0) {
-                    var line = buff + incoming.content().substring(0, eol);
+                    var line = partial + incoming.content().substring(0, eol);
                     clientManager.tell(new LineRead(line));
-                    var newBuff = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
-                    yield Become(socketHandler(self, clientManager, channel, newBuff));
+                    var rest = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
+                    yield Become(socketHandler(self, clientManager, channel, rest));
                 } else {
-                    var newBuff = buff + incoming.content();
-                    yield Become(socketHandler(self, clientManager, channel, newBuff));
+                    var rest = partial + incoming.content();
+                    yield Become(socketHandler(self, clientManager, channel, rest));
                 }
             }
             case WriteLine line -> {
