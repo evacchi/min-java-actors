@@ -18,9 +18,25 @@
     <maven.compiler.target>17</maven.compiler.target>
   </properties>
 
-  <dependencies>
 
+  <repositories>
+    <repository><id>central</id><url>https://repo1.maven.org/maven2/</url></repository>
+    <repository><id>jitpack</id><url>https://jitpack.io</url></repository>
+  </repositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.github.evacchi</groupId>
+      <artifactId>java-async-channels</artifactId>
+      <version>main-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.13.0</version>
+    </dependency>
   </dependencies>
+
 
   <build>
     <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
@@ -75,6 +91,49 @@
           <target>17</target>
           <compilerArgs>--enable-preview</compilerArgs>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.0.0</version>
+        <executions>
+          <execution>
+            <id>server</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.chat.ChatServer</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>client</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.chat.ChatClient</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>asyncserver</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.asyncchat.ChatServer</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>asyncclient</id>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>io.github.evacchi.asyncchat.ChatClient</mainClass>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
