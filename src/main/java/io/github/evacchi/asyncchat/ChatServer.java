@@ -61,7 +61,6 @@ public interface ChatServer {
 
         return msg -> switch (msg) {
             case ClientConnection conn -> {
-                out.printf("Client connected at %s\n", conn.socket().localAddress());
                 out.printf("Client connected at %s\n", conn.socket().remoteAddress());
                 var client =
                         system.actorOf(ca -> ChannelActor.socketHandler(ca, childrenManager, conn.socket()));
