@@ -54,14 +54,14 @@ public interface ChatServer {
     }
 
     static Behavior serverSocketHandler(Address self, Address childrenManager, Channels.ServerSocket serverSocket) {
-        out.println("Server in open socket!");
         serverSocket.accept()
                 .thenAccept(skt -> self.tell(new ClientConnection(skt)))
                 .exceptionally(exc -> { exc.printStackTrace(); return null; });
 
         return msg -> switch (msg) {
             case ClientConnection conn -> {
-                out.println("Child connected!");
+                out.printf("Client connected at %s\n", conn.socket().localAddress());
+                out.printf("Client connected at %s\n", conn.socket().remoteAddress());
                 var client =
                         system.actorOf(ca -> ChannelActor.socketHandler(ca, childrenManager, conn.socket()));
                 childrenManager.tell(new ClientConnected(client));

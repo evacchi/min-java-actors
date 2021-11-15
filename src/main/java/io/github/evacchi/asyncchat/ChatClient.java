@@ -52,7 +52,7 @@ public interface ChatClient {
         var channel = Channels.Socket.open();
         var client = system.actorOf(self -> clientConnecting(self, channel));
 
-        out.printf("User '%s' connecting...", userName);
+        out.printf("Login...............%s\n", userName);
 
         var scann = new Scanner(in);
         while (true) {
@@ -69,6 +69,8 @@ public interface ChatClient {
                 .exceptionally(err -> { err.printStackTrace(); return null; });
         return msg -> switch (msg) {
             case ClientConnection conn -> {
+                out.printf("Local connection....%s\n", conn.socket().localAddress());
+                out.printf("Remote connection...%s\n", conn.socket().remoteAddress());
                 var socket =
                         system.actorOf(ca -> ChannelActor.socketHandler(ca, self, conn.socket()));
                 yield Become(clientReady(self, socket));
@@ -82,7 +84,6 @@ public interface ChatClient {
     }
 
     static Actor.Behavior clientReady(Address self, Address socket) {
-        out.println("Connected.");
         var mapper = new ObjectMapper();
 
         return msg -> {
