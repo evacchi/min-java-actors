@@ -11,68 +11,77 @@ import java.util.concurrent.Executors;
 import static io.github.evacchi.TypedActor.*;
 import static java.lang.System.out;
 
-public interface VendingMachine {
-    sealed interface Vend {}
-    static record Coin(int amount) implements Vend {
-        public Coin {
-            if (amount < 1 && amount > 100)
-                throw new AssertionError("1 <= amount < 100");
-        }
-    }
-    static record Choice(String product) implements Vend {}
+interface VendMessage {}
 
-    static void main(String... args) {
-        var actorSystem = new TypedActor.System(Executors.newCachedThreadPool());
-        var vendingMachine = actorSystem.actorOf((Address<Vend> self) -> (Vend msg) -> initial(msg));
-        vendingMachine
+record Coin(int amount) implements VendMessage {
+    public Coin {
+        if (amount < 1 && amount > 100)
+            throw new AssertionError("1 <= amount < 100");
+    }
+}
+
+record Vended(String product) implements VendMessage {}
+
+public class VendingMachine {
+    static record Choice(String product) implements VendMessage {}
+
+    TypedActor.System sys = new TypedActor.System(Executors.newCachedThreadPool());
+
+    Address<VendMessage> vendingMachine = sys.actorOf(self -> initial(self));
+    Address<Choice> itemPicker = sys.actorOf(self -> msg -> itemPicker(msg));
+
+    public static void main(String... args) {
+        new VendingMachine().vendingMachine
                 .tell(new Coin(50))
                 .tell(new Coin(40))
                 .tell(new Coin(30))
                 .tell(new Choice("Chocolate"));
     }
-    static Effect<Vend> initial(Vend message) {
-        return switch(message) {
-            case Coin c -> {
-                out.println("Received first coin: " + c.amount);
-                yield Become(m -> waitCoin(m, c.amount()));
-            }
-            default -> Stay(); // ignore message, stay in this state
+
+    Behavior<VendMessage> initial(Address<VendMessage> self) {
+        return message -> {
+            if (message instanceof Coin c) {
+                out.printf("Received first coin: %d\n", c.amount());
+                return Become(waitCoin(self, c.amount()));
+            } else return Stay(); // ignore message, stay in this state
         };
     }
-    static Effect<Vend> waitCoin(Vend message, int counter) {
-        return switch(message) {
-            case Coin c && counter + c.amount() < 100 -> {
-                var count = counter + c.amount();
-                out.println("Received coin: " + count + " of 100");
-                yield Become(m -> waitCoin(m, count));
-            }
-            case Coin c -> {
-                var count = counter + c.amount();
-                out.println("Received last coin: " + count + " of 100");
-                var change = counter + c.amount() - 100;
-                yield Become(m -> vend(m, change));
-            }
-            default -> Stay(); // ignore message, stay in this state
+
+    Behavior<VendMessage> waitCoin(Address<VendMessage> self, int accumulator) {
+        out.printf("Budget updated: %d\n", accumulator);
+        return m -> switch (m) {
+            case Coin c && accumulator + c.amount() < 100 ->
+                    Become(waitCoin(self, accumulator + c.amount()));
+            case Coin c ->
+                    Become(vend(self, accumulator + c.amount()));
+            default -> Stay();
         };
     }
-    static  Effect<Vend> vend(Vend message, int change) {
-        return switch(message) {
+    Behavior<VendMessage> vend(Address<VendMessage> self, int total) {
+        out.printf("Pick an Item! (Budget: %d)\n", total);
+        return message -> switch(message) {
             case Choice c -> {
-                vendProduct(c.product());
-                releaseChange(change);
-                yield Become(m -> initial(m));
+                itemPicker.tell(c);
+                releaseChange(total - 100);
+                yield Stay();
             }
+            case Vended v -> Become(initial(self));
             default -> Stay(); // ignore message, stay in this state
         };
     }
 
-
-    static void vendProduct(String product) {
-        out.println("VENDING: " + product);
+    Effect<Choice> itemPicker(Choice message) {
+        vendProduct(message.product());
+        vendingMachine.tell(new Vended(message.product()));
+        return Stay();
     }
 
-    static  void releaseChange(int change) {
-        out.println("CHANGE: " + change);
+    void vendProduct(String product) {
+        out.printf("VENDING: %s\n", product);
+    }
+
+    void releaseChange(int change) {
+        out.printf("CHANGE: %s\n", %d);
     }
 
 }
