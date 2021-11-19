@@ -26,18 +26,15 @@ public interface PingPong {
         ponger.tell(new Ping(pinger));
     }
     static Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
-        return switch (msg) {
-            case Ping p && counter < 10 -> {
-                out.println("ping! 👉");
-                p.sender().tell(new SimplePong(self));
-                yield Become(m -> pongerBehavior(self, m, counter + 1));
-            }
-            case Ping p -> {
-                out.println("ping! 💀");
-                p.sender().tell(new DeadlyPong(self));
-                yield Die();
-            }
-        };
+        if (counter < 10) {
+            out.println("ping! 👉");
+            msg.sender().tell(new SimplePong(self));
+            return Become(m -> pongerBehavior(self, m, counter + 1));
+        } else {
+            out.println("ping! 💀");
+            msg.sender().tell(new DeadlyPong(self));
+            return Die();
+        }
     }
    static Effect<Pong> pingerBehavior(Address<Pong> self, Pong msg) {
         return switch (msg) {
