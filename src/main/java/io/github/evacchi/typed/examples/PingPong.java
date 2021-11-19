@@ -12,23 +12,24 @@ import static io.github.evacchi.TypedActor.*;
 import static java.lang.System.out;
 
 public interface PingPong {
-    sealed interface TPong {}
-    static record Ping(TypedActor.Address<TPong> sender) {}
-    static record Pong(TypedActor.Address<Ping> sender) implements TPong {}
-    static record DeadlyPong(TypedActor.Address<Ping> sender) implements TPong {}
+
+    sealed interface Pong {}
+    record SimplePong(Address<Ping> sender) implements Pong {}
+    record DeadlyPong(Address<Ping> sender) implements Pong {}
+
+    record Ping(Address<Pong> sender) {}
 
     static void main(String... args) {
         var actorSystem = new TypedActor.System(Executors.newCachedThreadPool());
-        var ponger = actorSystem.actorOf((TypedActor.Address<Ping> self) -> (Ping msg) -> pongerBehavior(self, msg, 0));
-        var pinger = actorSystem.actorOf((TypedActor.Address<TPong> self) -> (TPong msg) -> pingerBehavior(self, msg));
+        Address<Ping> ponger = actorSystem.actorOf(self -> msg -> pongerBehavior(self, msg, 0));
+        Address<Pong> pinger = actorSystem.actorOf(self -> msg -> pingerBehavior(self, msg));
         ponger.tell(new Ping(pinger));
     }
-
-    static TypedActor.Effect<Ping> pongerBehavior(TypedActor.Address<Ping> self, Ping msg, int counter) {
+    static Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
         return switch (msg) {
             case Ping p && counter < 10 -> {
                 out.println("ping! 👉");
-                p.sender().tell(new Pong(self));
+                p.sender().tell(new SimplePong(self));
                 yield Become(m -> pongerBehavior(self, m, counter + 1));
             }
             case Ping p -> {
@@ -38,9 +39,9 @@ public interface PingPong {
             }
         };
     }
-   static TypedActor.Effect<TPong> pingerBehavior(TypedActor.Address<TPong> self, TPong msg) {
+   static Effect<Pong> pingerBehavior(Address<Pong> self, Pong msg) {
         return switch (msg) {
-            case Pong p -> {
+            case SimplePong p -> {
                 out.println("pong! 👈");
                 p.sender().tell(new Ping(self));
                 yield Stay();
