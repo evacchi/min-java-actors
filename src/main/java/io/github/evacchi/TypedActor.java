@@ -26,8 +26,7 @@
 package io.github.evacchi;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import static java.lang.System.out;
@@ -35,19 +34,19 @@ import static java.lang.System.out;
 public interface TypedActor {
     interface Effect<T> extends Function<Behavior<T>, Behavior<T>> {}
     interface Behavior<T> extends Function<T, Effect<T>> {}
-    interface Address<T> { void tell(T msg); }
-    static <T> Effect<T> Become(Behavior<T> like) { return old -> like; }
-    static <T> Effect<T> Stay() { return old -> old; }
+    interface Address<T> { Address<T> tell(T msg); }
+    static <T> Effect<T> Become(Behavior<T> next) { return current -> next; }
+    static <T> Effect<T> Stay() { return current -> current; }
     static <T> Effect<T> Die() { return Become(msg -> { out.println("Dropping msg [" + msg + "] due to severe case of death."); return Stay(); }); }
     record System(Executor executor) {
         public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
             abstract class AtomicRunnableAddress<T> implements Address<T>, Runnable
                 { AtomicInteger on = new AtomicInteger(0); }
-            var addr = new AtomicRunnableAddress<T>() {
+            return new AtomicRunnableAddress<T>() {
                 // Our awesome little mailbox, free of blocking and evil
                 final ConcurrentLinkedQueue<T> mbox = new ConcurrentLinkedQueue<>();
-                Behavior<T> behavior;
-                public void tell(T msg) { mbox.offer(msg); async(); }  // Enqueue the message onto the mailbox and try to schedule for execution
+                Behavior<T> behavior = initial.apply(this);
+                public Address<T> tell(T msg) { mbox.offer(msg); async(); return this; }  // Enqueue the message onto the mailbox and try to schedule for execution
                 // Switch ourselves off, and then see if we should be rescheduled for execution
                 public void run() {
                     try { if (on.get() == 1) { T m = mbox.poll(); if (m != null) behavior = behavior.apply(m).apply(behavior); }
@@ -60,12 +59,10 @@ public interface TypedActor {
                         try { executor.execute(this); } catch (Throwable t) { on.set(0); throw t; }
                     }
                 }
-                void init() { executor.execute(() -> { behavior = initial.apply(this); async();}); }
             };
-            addr.init(); // Make the actor self aware by seeding its address to the initial behavior
-            return addr;
         }
     }
+
     static void main(String... args) {
         String choice = args.length >= 1? args[0] : "1";
         switch (Integer.parseInt(choice)) {
