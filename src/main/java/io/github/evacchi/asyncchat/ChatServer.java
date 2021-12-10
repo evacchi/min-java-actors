@@ -40,7 +40,7 @@ public interface ChatServer {
     record ClientConnection(Channels.Socket socket) { }
     record ClientConnected(Address addr) { }
 
-    Actor.System system = new Actor.System(Executors.newCachedThreadPool());
+    Actor.System system = new Actor.System(Executors.newVirtualThreadPerTaskExecutor());
     String HOST = "localhost"; int PORT = 4444;
 
     static void main(String... args) throws IOException, InterruptedException {

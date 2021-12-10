@@ -52,7 +52,7 @@ public interface Actor {
                     finally { on.set(0); async(); }}
                 void async() {
                     if (!mb.isEmpty() && on.compareAndSet(0, 1)) {
-                        try { executorService.execute(this); }
+                        try { executorService.submit(this); }
                         catch (Throwable t) { on.set(0); throw t; }}}
             };
             return addr.tell(addr); // Make the actor self aware by seeding its address to the initial behavior

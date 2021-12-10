@@ -81,7 +81,7 @@ public class VendingMachine {
     }
 
     void releaseChange(int change) {
-        out.printf("CHANGE: %s\n", %d);
+        out.printf("CHANGE: %s\n", change);
     }
 
 }

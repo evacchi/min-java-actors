@@ -14,8 +14,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
+    <maven.compiler.source>18</maven.compiler.source>
+    <maven.compiler.target>18</maven.compiler.target>
   </properties>
 
 
@@ -87,9 +87,11 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
-          <source>17</source>
-          <target>17</target>
-          <compilerArgs>--enable-preview</compilerArgs>
+          <source>18</source>
+          <target>18</target>
+          <compilerArgs>
+            --enable-preview
+          </compilerArgs>
         </configuration>
       </plugin>
       <plugin>
