@@ -19,8 +19,8 @@
  *
  */
 
-//JAVA 17
-//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA 19
+//JAVAC_OPTIONS --enable-preview --release 19
 //JAVA_OPTIONS  --enable-preview
 
 package io.github.evacchi;
@@ -106,7 +106,7 @@ public interface TypedActor {
 
         Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
             return switch (msg) {
-                case Ping p && counter < 10 -> {
+                case Ping p when counter < 10 -> {
                     out.println("ping! ➡️");
                     p.sender().tell(new Pong(self));
                     yield Become(m -> pongerBehavior(self, m, counter + 1));
@@ -138,7 +138,7 @@ public interface TypedActor {
             StatefulPonger(Address<Ping> self) { this.self = self; }
             public Effect<Ping> apply(Ping msg) {
                 return switch (msg) {
-                    case Ping p && counter < 10 -> {
+                    case Ping p when counter < 10 -> {
                         out.println("ping! ➡️");
                         p.sender().tell(new Pong(self));
                         this.counter++;
@@ -185,7 +185,7 @@ public interface TypedActor {
         }
         Effect<Vend> waitCoin(Object message, int counter) {
             return switch(message) {
-                case Coin c && counter + c.amount() < 100 -> {
+                case Coin c when counter + c.amount() < 100 -> {
                     var count = counter + c.amount();
                     out.println("Received coin: " + count + " of 100");
                     yield Become(m -> waitCoin(m, count));

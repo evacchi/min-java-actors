@@ -19,8 +19,8 @@
  *
  */
 
-//JAVA 17
-//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA 19
+//JAVAC_OPTIONS --enable-preview --release 19
 //JAVA_OPTIONS  --enable-preview
 
 package io.github.evacchi;
