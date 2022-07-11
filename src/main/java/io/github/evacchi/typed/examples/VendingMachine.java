@@ -1,5 +1,5 @@
-//JAVA 17
-//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA 19
+//JAVAC_OPTIONS --enable-preview --release 19
 //JAVA_OPTIONS  --enable-preview
 //SOURCES ../../TypedActor.java
 package io.github.evacchi.typed.examples;
@@ -50,7 +50,7 @@ public class VendingMachine {
     Behavior<VendMessage> waitCoin(Address<VendMessage> self, int accumulator) {
         out.printf("Budget updated: %d\n", accumulator);
         return m -> switch (m) {
-            case Coin c && accumulator + c.amount() < 100 ->
+            case Coin c when accumulator + c.amount() < 100 ->
                     Become(waitCoin(self, accumulator + c.amount()));
             case Coin c ->
                     Become(vend(self, accumulator + c.amount()));
@@ -81,7 +81,7 @@ public class VendingMachine {
     }
 
     void releaseChange(int change) {
-        out.printf("CHANGE: %s\n", %d);
+        out.printf("CHANGE: %s\n", change);
     }
 
 }

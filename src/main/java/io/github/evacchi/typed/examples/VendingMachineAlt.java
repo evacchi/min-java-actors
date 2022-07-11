@@ -1,5 +1,5 @@
-//JAVA 17
-//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA 19
+//JAVAC_OPTIONS --enable-preview --release 19
 //JAVA_OPTIONS  --enable-preview
 //SOURCES ../../TypedActor.java
 package io.github.evacchi.typed.examples;
@@ -40,7 +40,7 @@ public interface VendingMachineAlt {
     }
     static Behavior<Vend> waitCoin(Address<Vend> self, int counter) {
         return message -> switch(message) {
-            case Coin c && counter + c.amount() < 100 -> {
+            case Coin c when counter + c.amount() < 100 -> {
                 var count = counter + c.amount();
                 out.println("Received coin: " + count + " of 100");
                 yield Become(waitCoin(self, count));

@@ -15,6 +15,7 @@
  *    limitations under the License.
  *
  */
+//SOURCES ../channels/Channels.java
 
 package io.github.evacchi.asyncchat;
 
