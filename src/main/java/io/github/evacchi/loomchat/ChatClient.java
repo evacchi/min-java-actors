@@ -51,7 +51,7 @@ public interface ChatClient {
         var channel = new ChannelActors(socket);
         var writer = system.actorOf(self -> channel.writer());
         var client = system.actorOf(self -> client(self, writer));
-        system.actorOf(self -> channel.reader(client));
+        system.actorOf(self -> channel.reader(self, client));
 
         out.printf("Login............... %s\n", userName);
 

@@ -33,6 +33,8 @@ class ChannelActors {
     record LineRead(String payload) {}
     record WriteLine(String payload) {}
 
+    record PerformReadLine() {}
+
     interface UnsafeBehavior { Actor.Effect apply() throws IOException, InterruptedException; }
     static Actor.Behavior Unsafe(UnsafeBehavior behavior) {
         try { behavior.apply(); }
@@ -54,16 +56,30 @@ class ChannelActors {
         }
     }
 
-    Behavior reader(Address addr) {
-        return Unsafe(() -> {
-                while (true) {
-                    var line = in.readLine();
-                    if (line == null) break;
-                    addr.tell(new LineRead(line));
+    Behavior reader(Address self, Address addr) {
+        self.tell(new PerformReadLine());
+
+        return msg -> {
+            switch(msg) {
+                case PerformReadLine prl -> {
+                    String line;
+                    try {
+                        line = in.readLine();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+
+                    if (line != null) {
+                        addr.tell(new LineRead(line));
+                        self.tell(new PerformReadLine());
+                        return Stay;
+                    } else {
+                        return Die;
+                    }
                 }
-                return Stay;
+                default -> throw new RuntimeException("Unhandled message " + msg);
             }
-        );
+        };
     }
 
     Behavior writer() {

@@ -50,7 +50,7 @@ public interface ChatServer {
         while (true) {
             var socket = serverSocket.accept();
             var channel = new ChannelActors(socket);
-            system.actorOf(self -> channel.reader(clientManager));
+            system.actorOf(self -> channel.reader(self, clientManager));
             var writer = system.actorOf(self -> channel.writer());
             clientManager.tell(new ClientConnected(writer));
         }
