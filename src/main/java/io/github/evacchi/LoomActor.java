@@ -55,9 +55,7 @@ public interface LoomActor {
                     while (true) {
                         try {
                             Object m = mb.take();
-                            if (m != null) {
-                                behavior = behavior.apply(m).apply(behavior);
-                            }
+                            behavior = behavior.apply(m).apply(behavior);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                             break;
