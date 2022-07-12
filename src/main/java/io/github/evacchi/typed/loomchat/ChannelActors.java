@@ -55,19 +55,17 @@ class ChannelActors {
         }
 
         <T> Effect<PerformReadLine> read(Address<PerformReadLine> self) {
-            String line;
             try {
-                line = in.readLine();
+                return switch (in.readLine()) {
+                    case null -> { yield Die(); }
+                    case String line -> {
+                        addr.tell(fn.apply(line));
+                        self.tell(new PerformReadLine());
+                        yield Stay();
+                    }
+                };
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
-            }
-
-            if (line != null) {
-                addr.tell(fn.apply(line));
-                self.tell(new PerformReadLine());
-                return Stay();
-            } else {
-                return Die();
             }
         }
 

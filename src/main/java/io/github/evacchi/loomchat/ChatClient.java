@@ -56,9 +56,10 @@ public interface ChatClient {
 
         var scann = new Scanner(in);
         while (true) {
-            var line = scann.nextLine();
-            if (line != null && !line.isBlank()) {
-                client.tell(new Message(userName, line));
+            switch (scann.nextLine()) {
+                case String line when (line != null && !line.isBlank()) ->
+                    client.tell(new Message(userName, line));
+                default -> {}
             }
         }
     }
@@ -73,9 +74,10 @@ public interface ChatClient {
                         var jsonMsg = mapper.writeValueAsString(m);
                         writer.tell(new ChannelActors.WriteLine(jsonMsg));
                     }
-                    case ChannelActors.LineRead lr -> {
-                        var message = mapper.readValue(lr.payload().trim(), Message.class);
-                        out.printf("%s > %s\n", message.user(), message.text());
+                    case ChannelActors.LineRead(var payload) -> {
+                        switch (mapper.readValue(payload.trim(), Message.class)) {
+                            case Message(var user, var text) -> out.printf("%s > %s\n", user, text);
+                        }
                     }
                     default -> throw new RuntimeException("Unhandled message " + msg);
                 }
