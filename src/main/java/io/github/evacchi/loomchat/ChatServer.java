@@ -60,9 +60,9 @@ public interface ChatServer {
         var clients = new ArrayList<Address>();
         return msg -> {
             switch (msg) {
-                case ClientConnected cc -> clients.add(cc.addr());
-                case ChannelActors.LineRead lr ->
-                    clients.forEach(client -> client.tell(new ChannelActors.WriteLine(lr.payload())));
+                case ClientConnected(var address) -> clients.add(address);
+                case ChannelActors.LineRead(var payload) ->
+                    clients.forEach(client -> client.tell(new ChannelActors.WriteLine(payload)));
                 default -> throw new RuntimeException("Unhandled message " + msg);
             }
             return Stay;

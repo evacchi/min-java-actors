@@ -53,19 +53,17 @@ class ChannelActors {
         return msg -> {
             switch(msg) {
                 case PerformReadLine prl -> {
-                    String line;
                     try {
-                        line = in.readLine();
+                        return switch (in.readLine()) {
+                            case null -> { yield Die; }
+                            case String line -> {
+                                addr.tell(new LineRead(line));
+                                self.tell(new PerformReadLine());
+                                yield Stay;
+                            }
+                        };
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
-                    }
-
-                    if (line != null) {
-                        addr.tell(new LineRead(line));
-                        self.tell(new PerformReadLine());
-                        return Stay;
-                    } else {
-                        return Die;
                     }
                 }
                 default -> throw new RuntimeException("Unhandled message " + msg);
@@ -76,8 +74,8 @@ class ChannelActors {
     Behavior writer() {
         return msg -> {
             switch (msg) {
-                case WriteLine wl -> {
-                    out.println(wl.payload());
+                case WriteLine(var payload) -> {
+                    out.println(payload);
                 }
                 default -> throw new RuntimeException("Unhandled message " + msg);
             }

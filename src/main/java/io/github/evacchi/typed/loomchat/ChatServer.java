@@ -67,12 +67,12 @@ public interface ChatServer {
 
     static Effect<ClientManagerProtocol> clientManager(ClientManagerProtocol msg, List<Address<ChannelActors.WriteLine>> clients) {
         return switch (msg) {
-            case ClientConnected cc -> {
-                clients.add(cc.addr());
+            case ClientConnected(var address) -> {
+                clients.add(address);
                 yield Become(m -> clientManager(m, clients));
             }
-            case LineRead lr -> {
-                clients.forEach(client -> client.tell(new ChannelActors.WriteLine(lr.payload())));
+            case LineRead(var payload) -> {
+                clients.forEach(client -> client.tell(new ChannelActors.WriteLine(payload)));
                 yield Stay();
             }
         };
