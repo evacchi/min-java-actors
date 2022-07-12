@@ -43,6 +43,8 @@ public interface LoomActor {
 
     record System() {
         private static ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
+        // DEMO: the third client doesn't work and threads are actively busy
+        // private static ExecutorService executorService = Executors.newFixedThreadPool(5); // clientManager + (2 threads X client)
         public Address actorOf(Function<Address, Behavior> initial) {
             abstract class RunnableAddress implements Address, Runnable { }
             var addr = new RunnableAddress() {
