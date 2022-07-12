@@ -53,9 +53,9 @@ public interface ChatServer {
         while (true) {
             var socket = serverSocket.accept();
             var channel = new ChannelActors(socket);
-            Address<ChannelActors.PerformReadLine> reader =
-                    system.actorOf(self -> msg -> channel.reader(self, clientManager, (line) -> new ChatServer.LineRead(line), msg));
-            reader.tell(new ChannelActors.PerformReadLine());
+            ChannelActors.Reader<ClientManagerProtocol> reader =
+                    channel.reader(clientManager, (line) -> new LineRead(line));
+            reader.start(system.actorOf(self -> msg -> reader.read(self)));
             Address<ChannelActors.WriteLine> writer = system.actorOf(self -> msg -> channel.writer(msg));
             clientManager.tell(new ClientConnected(writer));
         }

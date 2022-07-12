@@ -25,6 +25,7 @@ import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.lang.System;
 import java.net.Socket;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static io.github.evacchi.TypedLoomActor.*;
@@ -46,21 +47,39 @@ class ChannelActors {
         }
     }
 
-    <T> Effect<PerformReadLine> reader(Address<PerformReadLine> self, Address<T> addr, Function<String, T> fn, PerformReadLine msg) {
-        String line;
-        try {
-            line = in.readLine();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    final class Reader<T> {
+        final Function<String, T> fn;
+        final Address<T> addr;
+
+        public Reader(Address<T> addr, Function<String, T> fn) {
+            this.fn = fn;
+            this.addr = addr;
         }
 
-        if (line != null) {
-            addr.tell(fn.apply(line));
-            self.tell(new PerformReadLine());
-            return Stay();
-        } else {
-            return Die();
+        <T> Effect<PerformReadLine> read(Address<PerformReadLine> self) {
+            String line;
+            try {
+                line = in.readLine();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            if (line != null) {
+                addr.tell(fn.apply(line));
+                self.tell(new PerformReadLine());
+                return Stay();
+            } else {
+                return Die();
+            }
         }
+
+        void start(Address<PerformReadLine> self) {
+            self.tell(new PerformReadLine());
+        }
+    }
+
+    <T> Reader<T> reader(Address<T> addr, Function<String, T> fn) {
+        return new Reader<>(addr, fn);
     }
 
     Effect<WriteLine> writer(WriteLine wl) {

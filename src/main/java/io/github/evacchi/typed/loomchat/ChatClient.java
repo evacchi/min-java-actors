@@ -54,8 +54,9 @@ public interface ChatClient {
         var channel = new ChannelActors(socket);
         Address<ChannelActors.WriteLine> writer = system.actorOf(self -> msg -> channel.writer(msg));
         Address<ClientProtocol> client = system.actorOf(self -> msg -> client(writer, msg));
-        Address<ChannelActors.PerformReadLine> reader = system.actorOf(self -> msg -> channel.reader(self, client, (line) -> new LineRead(line), msg));
-        reader.tell(new ChannelActors.PerformReadLine());
+        ChannelActors.Reader<ClientProtocol> reader =
+                channel.reader(client, (line) -> new LineRead(line));
+        reader.start(system.actorOf(self -> msg -> reader.read(self)));
 
         out.printf("Login............... %s\n", userName);
 
