@@ -20,24 +20,24 @@
 //JAVAC_OPTIONS --enable-preview --release 19
 //JAVA_OPTIONS  --enable-preview
 //SOURCES ChannelActors.java
-//SOURCES ../Actor.java
+//SOURCES ../LoomActor.java
 
 package io.github.evacchi.loomchat;
 
-import io.github.evacchi.Actor;
+import io.github.evacchi.LoomActor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
-import java.util.concurrent.Executors;
 
-import static io.github.evacchi.Actor.*;
+import static io.github.evacchi.LoomActor.*;
 import static java.lang.System.*;
 
 public interface ChatServer {
     record ClientConnected(Address addr) { }
 
-    Actor.System system = new Actor.System(Executors.newVirtualThreadPerTaskExecutor());
+    LoomActor.System system = new LoomActor.System();
     int PORT = 4444;
 
     static void main(String... args) throws IOException, InterruptedException {

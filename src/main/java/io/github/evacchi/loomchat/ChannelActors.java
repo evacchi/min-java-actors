@@ -18,7 +18,7 @@
 
 package io.github.evacchi.loomchat;
 
-import io.github.evacchi.Actor;
+import io.github.evacchi.LoomActor;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,22 +27,13 @@ import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.net.Socket;
 
-import static io.github.evacchi.Actor.*;
+import static io.github.evacchi.LoomActor.*;
 
 class ChannelActors {
     record LineRead(String payload) {}
     record WriteLine(String payload) {}
 
     record PerformReadLine() {}
-
-    interface UnsafeBehavior { Actor.Effect apply() throws IOException, InterruptedException; }
-    static Actor.Behavior Unsafe(UnsafeBehavior behavior) {
-        try { behavior.apply(); }
-        catch (InterruptedException e) { throw new RuntimeException(e); }
-        catch (IOException e) { throw new UncheckedIOException(e); }
-
-        return msg -> Stay;
-    }
 
     final BufferedReader in;
     final PrintWriter out;

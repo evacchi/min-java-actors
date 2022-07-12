@@ -19,28 +19,27 @@
 //JAVAC_OPTIONS --enable-preview --release 19
 //JAVA_OPTIONS  --enable-preview
 //SOURCES ChannelActors.java
-//SOURCES ../Actor.java
+//SOURCES ../LoomActor.java
 //DEPS com.fasterxml.jackson.core:jackson-databind:2.13.0
 
 package io.github.evacchi.loomchat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.evacchi.Actor;
+import io.github.evacchi.LoomActor;
 
 import java.io.*;
 import java.net.Socket;
 import java.util.Scanner;
-import java.util.concurrent.*;
 
-import static io.github.evacchi.Actor.*;
+import static io.github.evacchi.LoomActor.*;
 import static java.lang.System.*;
 
 public interface ChatClient {
 
     String host = "localhost";
     int portNumber = 4444;
-    Actor.System system = new Actor.System(Executors.newVirtualThreadPerTaskExecutor());
+    LoomActor.System system = new LoomActor.System();
 
     record Message(String user, String text) {}
 
@@ -64,7 +63,7 @@ public interface ChatClient {
         }
     }
 
-    static Actor.Behavior client(Address self, Address writer) {
+    static LoomActor.Behavior client(Address self, Address writer) {
         var mapper = new ObjectMapper();
 
         return msg -> {
