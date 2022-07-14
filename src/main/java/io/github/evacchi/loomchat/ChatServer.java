@@ -27,7 +27,6 @@ package io.github.evacchi.loomchat;
 import io.github.evacchi.LoomActor;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
 

@@ -83,7 +83,7 @@
         <configuration>
           <source>19</source>
           <target>19</target>
-          <compilerArgs>--enable-preview</compilerArgs>
+          <compilerArgs>--enable-preview,-Xlint:unchecked</compilerArgs>
         </configuration>
       </plugin>
       <plugin>

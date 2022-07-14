@@ -37,7 +37,7 @@ import static java.lang.System.out;
 public interface ChatServer {
 
     sealed interface ClientManagerProtocol { }
-    record ClientConnected(Address addr) implements ClientManagerProtocol { }
+    record ClientConnected(Address<ChannelActors.WriteLine> addr) implements ClientManagerProtocol { }
     record LineRead(String payload) implements ClientManagerProtocol {}
 
     TypedLoomActor.System system = new TypedLoomActor.System();
@@ -55,14 +55,14 @@ public interface ChatServer {
             var channel = new ChannelActors(socket);
             ChannelActors.Reader<ClientManagerProtocol> reader =
                     channel.reader(clientManager, (line) -> new LineRead(line));
-            reader.start(system.actorOf(self -> msg -> reader.read(self)));
+            Address<ChannelActors.PerformReadLine> readerActor = system.actorOf(self -> reader.start(self));
             Address<ChannelActors.WriteLine> writer = system.actorOf(self -> msg -> channel.writer(msg));
             clientManager.tell(new ClientConnected(writer));
         }
     }
 
     static Effect<ClientManagerProtocol> clientManager(ClientManagerProtocol msg) {
-        return clientManager(msg, new ArrayList());
+        return clientManager(msg, new ArrayList<>());
     }
 
     static Effect<ClientManagerProtocol> clientManager(ClientManagerProtocol msg, List<Address<ChannelActors.WriteLine>> clients) {

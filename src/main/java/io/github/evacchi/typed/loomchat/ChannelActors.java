@@ -54,7 +54,12 @@ class ChannelActors {
             this.addr = addr;
         }
 
-        <T> Effect<PerformReadLine> read(Address<PerformReadLine> self) {
+        Behavior<PerformReadLine> start(Address<PerformReadLine> self) {
+            self.tell(new PerformReadLine());
+            return msg -> read(self, msg);
+        }
+
+        private Effect<PerformReadLine> read(Address<PerformReadLine> self, PerformReadLine prl) {
             try {
                 return switch (in.readLine()) {
                     case null -> { yield Die(); }
@@ -67,10 +72,6 @@ class ChannelActors {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }
-
-        void start(Address<PerformReadLine> self) {
-            self.tell(new PerformReadLine());
         }
     }
 

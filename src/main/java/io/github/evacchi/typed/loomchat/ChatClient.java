@@ -56,7 +56,7 @@ public interface ChatClient {
         Address<ClientProtocol> client = system.actorOf(self -> msg -> client(writer, msg));
         ChannelActors.Reader<ClientProtocol> reader =
                 channel.reader(client, (line) -> new LineRead(line));
-        reader.start(system.actorOf(self -> msg -> reader.read(self)));
+        Address<ChannelActors.PerformReadLine> readerActor = system.actorOf(self -> reader.start(self));
 
         out.printf("Login............... %s\n", userName);
 
